@@ -1,15 +1,22 @@
 #import requests
 import time
 import serial
+import serial.tools.list_ports
 import math
-
+import tkinter as tk
+from tkinter import ttk
 # =========
+
+ports = serial.tools.list_ports.comports()
+for p in ports:
+	print(p.device)
+
 # settings
 
 # Arduino serial port
 arduino_port = "/dev/ttyACM0"
 # Printer serial port
-printer_port = "/dev/ttyUSB0"
+printer_port = "/dev/ttyUSB1"
 
 # mode (True for current, False for voltage)
 current_mode = True
@@ -31,8 +38,24 @@ min_y = 110.0
 max_x = 160.0
 min_x = 129.0
 
+x_limit = 235
+y_limit = 235
+z_limit = 200
+
+# current pos
+pos_x = 0
+pos_y = 0
+pos_z = 0
+
+# center x,y
+cen_x = 146
+cen_y = 124
+
+# target z
+tar_z = 90
+
 # single point mode
-single_point = False
+single_point = True
 
 # number of points on each circle
 points = 3
@@ -73,14 +96,17 @@ def printer_write(command):
 	printer.write((command + "\n").encode())
 
 def move_head(x = None, y = None, z = None):
+	global pos_x, pos_y, pos_z
 	command = "G1"
 	if x is not None:
 		command += " X" + str(x)
+		pos_x = x
 	if y is not None:
 		command += " Y" + str(y)
+		pos_y = y
 	if z is not None:
 		command += " Z" + str(z)
-
+		pos_z = z
 	printer_write(command)
 
 def show_state(state):
@@ -120,6 +146,74 @@ def play_sound():
 
 	for command in commands:
 		printer_write(command)
+
+def head_home():
+	global pos_x, pos_y, pos_z
+	pos_x=0
+	pos_y=0
+	pos_z=0
+	printer_write("G28")
+
+def move_x(amount):
+	global pos_x
+	pos_x = min(x_limit, max(0, pos_x + amount))
+	move_head(x=pos_x)
+
+def move_y(amount):
+	global pos_y
+	pos_y = min(y_limit, max(0, pos_y + amount))
+	move_head(y=pos_y)
+
+def move_z(amount):
+	global pos_z
+	pos_z = min(z_limit, max(0, pos_z + amount))
+	move_head(z=pos_z)
+
+def set_center_position():
+	global pos_x, pos_y, cen_x, cen_y
+	cen_x = pos_x
+	cen_y = pos_y
+
+def set_target_z_position():
+	global pos_z, tar_z
+	tar_z = pos_z
+
+# gui
+m = tk.Tk()
+m.title('Electroplating GUI')
+
+# homing function
+homing = tk.Button(m, text='Home', width=5, command=lambda : head_home()) ; homing.pack()
+
+# setting increment
+increment = tk.DoubleVar(None, 1.0)
+increment_options = (('0.1', 0.1), ('1', 1.0), ('10', 10.0), ('100', 100.0))
+
+label = ttk.Label(text="increment size?")
+label.pack(fill='x', padx=5, pady=5)
+
+for increments in increment_options:
+    r = ttk.Radiobutton(
+        m,
+        text=increments[0],
+        value=increments[1],
+        variable=increment
+    )
+    r.pack(fill='x', padx=5, pady=5)
+
+#movement functions
+up = tk.Button(m, text='UP', width=5, command=lambda : move_z(increment.get())) ; up.pack()
+down = tk.Button(m, text='DOWN', width=5, command=lambda : move_z(-increment.get())) ; down.pack()
+left = tk.Button(m, text='LEFT', width=5, command=lambda : move_x(-increment.get())) ; left.pack()
+right = tk.Button(m, text='RIGHT', width=5, command=lambda : move_x(increment.get())) ; right.pack()
+forward = tk.Button(m, text='FORWARD', width=5, command=lambda : move_y(-increment.get())) ; forward.pack()
+back = tk.Button(m, text='BACK', width=5, command=lambda : move_y(increment.get())) ; back.pack()
+set_center = tk.Button(m, text='SET CENTER', width=20, command=lambda : set_center_position()) ; set_center.pack()
+move_to_center = tk.Button(m, text='MOVE TO CENTER', width=20, command=lambda : move_head(x=cen_x, y=cen_y)) ; move_to_center.pack()
+set_target_z = tk.Button(m, text='SET TARGET Z', width=20, command=lambda : set_target_z_position()) ; set_target_z.pack()
+move_to_target_z = tk.Button(m, text='MOVE TO TARGET Z', width=20, command=lambda : move_head(z=tar_z)) ; move_to_target_z.pack()
+
+m.mainloop()
 
 try:
 	# send reset command to arduino
