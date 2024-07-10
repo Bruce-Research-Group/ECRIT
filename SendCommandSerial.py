@@ -6,6 +6,11 @@ import math
 import tkinter as tk
 from tkinter import ttk
 import threading
+import matplotlib
+matplotlib.use('TkAgg')
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+from matplotlib import style
 # =========
 
 ports = serial.tools.list_ports.comports()
@@ -18,6 +23,12 @@ for p in ports:
 arduino_port = "/dev/ttyACM0"
 # Printer serial port
 printer_port = "/dev/ttyUSB0"
+
+# Matplotlib Graph
+style.use('fivethirtyeight')
+
+# fig = plt.figure()
+# ax1 = fig.add_subplot(1,1,1)
 
 # mode (True for current, False for voltage)
 current_mode = True
@@ -183,6 +194,11 @@ def readSerial():
 	l = arduino.readline().decode()
 	print(l, end="")
 
+def animate(i):
+	global vol_list, time_list
+	ax1.clear()
+	ax1.plot(vol_list, time_list)
+
 def do_task():
 	threading.Thread(target=start_electroplating, args=()).start()
 
@@ -286,11 +302,13 @@ def start_electroplating():
 				f.write(l + "\n")
 				values = l.split(',')
 				cur = values[0]
+				tar_vol = values[1]
+				vol = values[2]
 				cur_label.config(text=f'current: {cur}')
 				vol_label.config(text=f'voltage: {vol}')
 				tar_vol_label.config(text=f'target voltage: {tar_vol}')
-				tar_vol = values[1]
-				vol = values[2]
+				vol_list.append(float(vol))
+				time_list.append(float(time.time()-start))
 
 			# signal the arduino to stop electroplating
 			arduino_write("f")
@@ -326,6 +344,8 @@ m.title('Electroplating GUI')
 cur = "current: no reading yet"
 vol = "voltage: no reading yet"
 tar_vol = "target voltage: no reading yet"
+vol_list = []
+time_list = []
 
 # homing function
 homing = tk.Button(m, text='Home', width=5, command=lambda : head_home()) ; homing.pack()
@@ -371,7 +391,6 @@ tar_vol_label.pack()
 
 #electroplating functions
 start = tk.Button(m, text='START ELECTROPLATING', width=20, command=lambda : do_task()) ; start.pack()
-
+# ani = animation.FuncAnimation(fig, animate, interval=1000)
+# plt.show()
 m.mainloop()
-
-
