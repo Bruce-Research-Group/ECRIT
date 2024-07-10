@@ -4,6 +4,7 @@
 #define V_OUT 6
 // Pin for current sensor input
 #define I_IN A1
+#define V_IN A0
 
 // the step size for adjusting the output voltage (V) in current mode
 float intervalSize = 0.005;
@@ -117,6 +118,10 @@ void loop()
 	int sensorValue = analogRead(I_IN);
 	float current = 1000 * ( sensorValue / 16383.0 ) * 0.5;
 
+  int voltageValue = analogRead(V_IN);
+  float actualVoltage = (voltageValue / 16383.0 ) * 5.0;
+
+
 	// adjust the voltage to hold current in current mode
 	if (currentMode)
 	{
@@ -133,9 +138,9 @@ void loop()
 		outputVoltage = constrain(outputVoltage, 0, 5);
 	}
 
-	Serial.print("S: ");
 	Serial.print(current, 4);
-	Serial.print(" mA, ");
+	Serial.print(",");
 	Serial.print(outputVoltage, 3);
-	Serial.println(" V");
+	Serial.print(",");
+  Serial.println(actualVoltage, 3);
 }
