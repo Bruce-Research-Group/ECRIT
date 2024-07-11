@@ -11,6 +11,7 @@ matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib import style
+
 # =========
 
 ports = serial.tools.list_ports.comports()
@@ -45,6 +46,7 @@ diff_z = 1
 travel_z = 110.0
 max_z = 50
 min_z = 45.9
+mac_z = 45.9
 max_y = 142.0
 min_y = 110.0
 max_x = 160.0
@@ -77,7 +79,7 @@ inc_r = 2
 # =========
 
 # find the actual min_z
-min_z = min_z + diff_z
+# min_z = min_z + diff_z
 # find the middle
 cx = min_x + (max_x - min_x) / 2
 cy = min_y + (max_y - min_y) / 2
@@ -190,6 +192,24 @@ def set_target_z_position():
 	global pos_z, tar_z
 	tar_z = pos_z
 
+def set_distance_position():
+	global diff_z, min_z
+	diff_z = float(input_distance.get(1.0, "end-1c"))
+	min_z = mac_z + diff_z
+	print("Distance Updated")
+	
+def set_duration_time():
+	global duration
+	duration = float(input_duration.get(1.0, "end-1c"))
+	print("Duration Updated")
+
+def set_current_target():
+	global target_current
+	target_current = float(input_current.get(1.0, "end-1c"))
+	# arduino_write("c " + str(target_current))
+	# readSerial()
+	print("Current Updated")
+
 def readSerial():
 	l = arduino.readline().decode()
 	print(l, end="")
@@ -229,17 +249,17 @@ def start_electroplating():
 		# move the head to the travel height
 		move_head(z=travel_z)
 		show_state("To travel height")
-		#time.sleep(40)
+		time.sleep(40)
 
 		# move the head to the center of the circle
 		move_head(x=cx, y=cy)
 		show_state("Centering")
-		#time.sleep(5)
+		time.sleep(5)
 
 		# move the head to the right height
 		move_head(z=max_z)
 		show_state("To starting height")
-		#time.sleep(30)
+		time.sleep(30)
 
 		# points
 		points = []
@@ -338,7 +358,38 @@ def start_electroplating():
 
 # gui
 m = tk.Tk()
+m.configure(background='#2E3440')
 m.title('Electroplating GUI')
+style = ttk.Style()
+style.configure('TButton',
+                font=('Helvetica', 12),
+                padding=6,
+                foreground='#FFFFFF',
+                background='#4CAF50', # Green background color
+                borderwidth=0)
+style.map('TButton',
+          foreground=[('pressed', '#FFFFFF'), ('active', '#FFFFFF'), ('!disabled', '#FFFFFF')],
+          background=[('pressed', '#388E3C'), ('active', '#45A049'), ('!disabled', '#4CAF50')])
+style.configure('TLabel',
+								font=('Helvetica', 12),
+								foreground='#FFFFFF',
+								background = '#2E3440')
+style.configure('TRadiobutton',
+								font=('Helvetica', 12),
+								foreground='#FFFFFF',
+								background = '#2E3440')
+style.configure('TFrame', background='#2E3440')
+tabControl = ttk.Notebook(m)
+tab1 = ttk.Frame(tabControl) 
+tab2 = ttk.Frame(tabControl)
+tab3 = ttk.Frame(tabControl)
+tab1.configure(style='TFrame')
+tab2.configure(style='TFrame')
+tab3.configure(style='TFrame')
+tabControl.add(tab1, text ='Calibration of the System') 
+tabControl.add(tab2, text ='Operational Parameters for Electrodeposition')
+tabControl.add(tab3, text ='Chronoamperometry Measurement') 
+tabControl.pack(expand = 1, fill ="both") 
 
 # values
 cur = "current: no reading yet"
@@ -348,49 +399,71 @@ vol_list = []
 time_list = []
 
 # homing function
-homing = tk.Button(m, text='Home', width=5, command=lambda : head_home()) ; homing.pack()
+homing = ttk.Button(tab1, text='Home', style='TButton',width=5, command=lambda : head_home()) ; homing.grid(row = 1, column = 1)
 
 # setting increment
 increment = tk.DoubleVar(None, 1.0)
 increment_options = (('0.1', 0.1), ('1', 1.0), ('10', 10.0), ('100', 100.0))
 
-increment_label = ttk.Label(text="increment size?")
-increment_label.pack(fill='x', padx=5, pady=5)
-
+increment_label = ttk.Label(tab1, text="Input the Increment Size:", style='TLabel')
+increment_label.grid(row = 3, column = 0, padx=5, pady=5)
+i=4
 for increments in increment_options:
     r = ttk.Radiobutton(
-        m,
+        tab1,
         text=increments[0],
         value=increments[1],
+				style='TRadiobutton',
         variable=increment
     )
-    r.pack(fill='x', padx=5, pady=5)
+    r.grid(row = i, column = 0, sticky='w', padx=5, pady=5)
+    i+=1
 
 #movement functions
-up = tk.Button(m, text='UP', width=5, command=lambda : move_z(increment.get())) ; up.pack()
-down = tk.Button(m, text='DOWN', width=5, command=lambda : move_z(-increment.get())) ; down.pack()
-left = tk.Button(m, text='LEFT', width=5, command=lambda : move_x(-increment.get())) ; left.pack()
-right = tk.Button(m, text='RIGHT', width=5, command=lambda : move_x(increment.get())) ; right.pack()
-forward = tk.Button(m, text='FORWARD', width=5, command=lambda : move_y(-increment.get())) ; forward.pack()
-back = tk.Button(m, text='BACK', width=5, command=lambda : move_y(increment.get())) ; back.pack()
-set_center = tk.Button(m, text='SET CENTER', width=20, command=lambda : set_center_position()) ; set_center.pack()
-move_to_center = tk.Button(m, text='MOVE TO CENTER', width=20, command=lambda : move_head(x=cen_x, y=cen_y)) ; move_to_center.pack()
-set_target_z = tk.Button(m, text='SET TARGET Z', width=20, command=lambda : set_target_z_position()) ; set_target_z.pack()
-move_to_target_z = tk.Button(m, text='MOVE TO TARGET Z', width=20, command=lambda : move_head(z=tar_z)) ; move_to_target_z.pack()
+up = tk.Button(tab1, text='↑', width=2, command=lambda : move_z(increment.get()))
+up.grid(row=4, column=7, padx=20, pady=5)
+down = tk.Button(tab1, text='↓', width=2, command=lambda : move_z(-increment.get()))
+down.grid(row=6, column=7, padx=20, pady=5)
+left = tk.Button(tab1, text='←', width=2, command=lambda : move_x(-increment.get()))
+left.grid(row=5, column=3, padx=5, pady=5)
+right = tk.Button(tab1, text='→', width=2, command=lambda : move_x(increment.get()))
+right.grid(row=5, column=5, padx=5, pady=5)
+forward = tk.Button(tab1, text='↑', width=2, command=lambda : move_y(-increment.get()))
+forward.grid(row=4, column=4, padx=5, pady=5)
+back = tk.Button(tab1, text='↓', width=2, command=lambda : move_y(increment.get()))
+back.grid(row=6, column=4, padx=5, pady=5)
+set_center = tk.Button(tab1, text='SET CENTER', width=20, command=lambda : set_center_position()) ; set_center.grid(row=8, column=1, padx=5, pady=5)
+move_to_center = tk.Button(tab1, text='MOVE TO CENTER', width=20, command=lambda : move_head(x=cen_x, y=cen_y)) ; move_to_center.grid(row=9, column=1, padx=5, pady=5)
+set_target_z = tk.Button(tab1, text='SET TARGET Z', width=20, command=lambda : set_target_z_position()) ; set_target_z.grid(row=10, column=1, padx=5, pady=5)
+move_to_target_z = tk.Button(tab1, text='MOVE TO TARGET Z', width=20, command=lambda : move_head(z=tar_z)) ; move_to_target_z.grid(row=11, column=1, padx=5, pady=5)
+
+#Operational Parameters
+distance_label = ttk.Label(tab2, text="Distance of WE from CE (mm):", style='TLabel')
+distance_label.grid(row = 0, column = 0, sticky='w', padx=5, pady=5)
+duration_label = ttk.Label(tab2, text="ElectrodePosition time (sec):", style='TLabel')
+duration_label.grid(row = 1, column = 0, sticky='w', padx=5, pady=5)
+current_label = ttk.Label(tab2, text="Set a Current (mV):", style='TLabel')
+current_label.grid(row = 2, column = 0, sticky='w', padx=5, pady=5)
+input_distance = tk.Text(tab2, height=1, width=5) ; input_distance.grid(row=0, column=1, sticky='w', padx=5, pady=5)
+input_duration = tk.Text(tab2, height=1, width=5) ; input_duration.grid(row=1, column=1, sticky='w', padx=5, pady=5)
+input_current = tk.Text(tab2, height=1, width=5) ; input_current.grid(row=2, column=1, sticky='w', padx=5, pady=5)
+set_distance = tk.Button(tab2, text='SET DISTANCE', width=20, command=lambda : set_distance_position()) ; set_distance.grid(row=0, column=2, padx=5, pady=5)
+set_duration = tk.Button(tab2, text='SET DURATION', width=20, command=lambda : set_duration_time()) ; set_duration.grid(row=1, column=2, padx=5, pady=5)
+set_current = tk.Button(tab2, text='SET CURRENT', width=20, command=lambda : set_current_target()) ; set_current.grid(row=2, column=2, padx=5, pady=5)
 
 #value display
-cur_label = tk.Label(m)
+cur_label = tk.Label(tab3)
 cur_label.config(text=cur)
-cur_label.pack()
-vol_label = tk.Label(m)
+cur_label.grid(row=0, column=0, sticky='w', padx=5, pady=5)
+vol_label = tk.Label(tab3)
 vol_label.config(text=vol)
-vol_label.pack()
-tar_vol_label = tk.Label(m)
+vol_label.grid(row=1, column=0, sticky='w', padx=5, pady=5)
+tar_vol_label = tk.Label(tab3)
 tar_vol_label.config(text=tar_vol)
-tar_vol_label.pack()
+tar_vol_label.grid(row=2, column=0, sticky='w', padx=5, pady=5)
 
 #electroplating functions
-start = tk.Button(m, text='START ELECTROPLATING', width=20, command=lambda : do_task()) ; start.pack()
+start = tk.Button(tab3, text='START ELECTROPLATING', command=lambda : do_task()) ; start.grid(row=3, column=0, sticky='w', padx=5, pady=5)
 # ani = animation.FuncAnimation(fig, animate, interval=1000)
 # plt.show()
 m.mainloop()
