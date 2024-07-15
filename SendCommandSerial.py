@@ -205,10 +205,10 @@ def set_duration_time():
 
 def set_current_target():
 	global target_current
-	target_current = float(input_current.get(1.0, "end-1c"))
+	target_current = float(input_current.get(1.0, "end-1c")) # Need to figure out how to update this live during electroplating
 	# arduino_write("c " + str(target_current))
 	# readSerial()
-	print("Current Updated")
+	print("Current Updated to", target_current)
 
 def readSerial():
 	l = arduino.readline().decode()
@@ -249,17 +249,17 @@ def start_electroplating():
 		# move the head to the travel height
 		move_head(z=travel_z)
 		show_state("To travel height")
-		time.sleep(40)
+		# time.sleep(40)
 
 		# move the head to the center of the circle
 		move_head(x=cx, y=cy)
 		show_state("Centering")
-		time.sleep(5)
+		# time.sleep(5)
 
 		# move the head to the right height
 		move_head(z=max_z)
 		show_state("To starting height")
-		time.sleep(30)
+		# time.sleep(30)
 
 		# points
 		points = []
@@ -440,7 +440,7 @@ move_to_target_z = tk.Button(tab1, text='MOVE TO TARGET Z', width=20, command=la
 #Operational Parameters
 distance_label = ttk.Label(tab2, text="Distance of WE from CE (mm):", style='TLabel')
 distance_label.grid(row = 0, column = 0, sticky='w', padx=5, pady=5)
-duration_label = ttk.Label(tab2, text="ElectrodePosition time (sec):", style='TLabel')
+duration_label = ttk.Label(tab2, text="Electrodeposition time (sec):", style='TLabel')
 duration_label.grid(row = 1, column = 0, sticky='w', padx=5, pady=5)
 current_label = ttk.Label(tab2, text="Set a Current (mV):", style='TLabel')
 current_label.grid(row = 2, column = 0, sticky='w', padx=5, pady=5)

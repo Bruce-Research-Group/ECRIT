@@ -17,6 +17,9 @@ float targetCurrent = 10;
 // the target voltage (V) in voltage mode
 float targetVoltage = 0.5;
 
+// proportion constant
+float kp = 0.01;
+
 // the status of the system
 bool active = false;
 // the mode of the system
@@ -128,11 +131,11 @@ void loop()
 		// adjust the output voltage base on the current
 		if (current < targetCurrent)
 		{
-			outputVoltage += intervalSize;  
+			outputVoltage += (targetCurrent-current) * kp;  
 		}
 		else if (current > targetCurrent)
 		{
-			outputVoltage -= intervalSize;
+			outputVoltage -= (current-targetCurrent) * kp;
 		}
 		// limit the output voltage to between 0 and 5V
 		outputVoltage = constrain(outputVoltage, 0, 5);
