@@ -1,0 +1,21 @@
+{
+  "current_mode": true,
+  "target_current": 63,
+  "target_voltage": 5,
+  "duration": 10,
+  "diff_z": 1,
+  "travel_z": 110.0,
+  "min_z": 45.9,
+  "x_limit": 235,
+  "y_limit": 235,
+  "z_limit": 200,
+  "pos_x": 0,
+  "pos_y": 0,
+  "pos_z": 0,
+  "cen_x": 146,
+  "cen_y": 124,
+  "tar_z": 90,
+  "single_point": true,
+  "points": 3,
+  "inc_r": 2
+}

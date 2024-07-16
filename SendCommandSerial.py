@@ -11,12 +11,17 @@ matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib import style
+import json
 
 # =========
 
 ports = serial.tools.list_ports.comports()
 for p in ports:
 	print(p.device)
+
+# Load configuration from config.json
+with open('config.json', 'r') as f:
+    config = json.load(f)
 
 # settings
 
@@ -32,61 +37,63 @@ style.use('fivethirtyeight')
 # ax1 = fig.add_subplot(1,1,1)
 
 # mode (True for current, False for voltage)
-current_mode = True
+current_mode = config["current_mode"]
 # target current in mA
-target_current = 63
+target_current = config["target_current"]
 # target voltage in V
-target_voltage = 5
+target_voltage = config["target_voltage"]
 # target duration in seconds
-duration = 10
+duration = config["duration"]
 # distance between anode and cathode in mm
-diff_z = 1
+diff_z = config["diff_z"]
 
 # machine limits
-travel_z = 110.0
+travel_z = config["travel_z"]
 max_z = 50
-min_z = 45.9
+min_z = config["min_z"]
 mac_z = 45.9
 max_y = 142.0
 min_y = 110.0
 max_x = 160.0
 min_x = 129.0
 
-x_limit = 235
-y_limit = 235
-z_limit = 200
+x_limit = config["x_limit"]
+y_limit = config["y_limit"]
+z_limit = config["z_limit"]
 
 # current pos
-pos_x = 0
-pos_y = 0
-pos_z = 0
+pos_x = config["pos_x"]
+pos_y = config["pos_y"]
+pos_z = config["pos_z"]
 
 # center x,y
-cen_x = 146
-cen_y = 124
+cen_x = config["cen_x"]
+cen_y = config["cen_y"]
 
 # target z
-tar_z = 90
+tar_z = config["tar_z"]
 
 # single point mode
-single_point = True
+single_point = config["single_point"]
 
 # number of points on each circle
-points = 3
+points = config["points"]
 # distance between the radius of each circle
-inc_r = 2
+inc_r = config["inc_r"]
 
+# points
+points_coordinates = []
 # =========
 
 # find the actual min_z
 # min_z = min_z + diff_z
 # find the middle
-cx = min_x + (max_x - min_x) / 2
-cy = min_y + (max_y - min_y) / 2
+# cx = min_x + (max_x - min_x) / 2
+# cy = min_y + (max_y - min_y) / 2
 
-# cx cy override
-cx = 146
-cy = 124
+# # cx cy override
+# cx = 146
+# cy = 124
 
 # find the diameter
 d = min(max_x - min_x, max_y - min_y)
@@ -191,11 +198,12 @@ def set_center_position():
 def set_target_z_position():
 	global pos_z, tar_z
 	tar_z = pos_z
+	print("target z set")
 
 def set_distance_position():
-	global diff_z, min_z
+	global diff_z, tar_z, min_z
 	diff_z = float(input_distance.get(1.0, "end-1c"))
-	min_z = mac_z + diff_z
+	min_z = tar_z + diff_z
 	print("Distance Updated")
 	
 def set_duration_time():
@@ -210,9 +218,28 @@ def set_current_target():
 	# readSerial()
 	print("Current Updated to", target_current)
 
+def set_point_mode():
+	global single_point, points_coordinates
+	if single_point:
+		set_point.config(text="Single Point OFF", relief="raised")
+		set_point1.grid(row=10, column=8, padx=5, pady=5)
+		points_label.config(text=f'{len(points_coordinates)} points set')
+	else:
+		set_point.config(text="Single Point ON", relief="sunken")
+		set_point1.grid_forget()
+		points_label.config(text="Using Center point")
+		points_coordinates = []
+	single_point = not single_point
+
+def set_a_point():
+	global points_coordinates, pos_x, pos_y
+	points_coordinates.append((pos_x, pos_y))
+	points_label.config(text=f'{len(points_coordinates)} points set')
+	print("point set at", pos_x, pos_y)
+
 def readSerial():
 	l = arduino.readline().decode()
-	print(l, end="")
+	print("this is what readSerial is printing", l, end="")
 
 def animate(i):
 	global vol_list, time_list
@@ -223,7 +250,7 @@ def do_task():
 	threading.Thread(target=start_electroplating, args=()).start()
 
 def start_electroplating():
-	global points, vol, tar_vol, cur
+	global points_coordinates, vol, tar_vol, cur
 	try:
 		# send reset command to arduino
 		arduino_write("r")
@@ -249,48 +276,47 @@ def start_electroplating():
 		# move the head to the travel height
 		move_head(z=travel_z)
 		show_state("To travel height")
-		# time.sleep(40)
+		time.sleep(40)
 
 		# move the head to the center of the circle
-		move_head(x=cx, y=cy)
+		move_head(x=cen_x, y=cen_y)
 		show_state("Centering")
-		# time.sleep(5)
+		time.sleep(5)
 
 		# move the head to the right height
 		move_head(z=max_z)
 		show_state("To starting height")
-		# time.sleep(30)
+		time.sleep(30)
 
-		# points
-		points = []
+
 		if single_point:
-			points.append((cx, cy))
-		else:
-			# polar coord
-			r = inc_r
-			theta = 0
+			points_coordinates = [(cen_x, cen_y)]
+		# else:
+		# 	# polar coord
+		# 	r = inc_r
+		# 	theta = 0
 
-			while True:
-				# if we finished one circle, move the radius out to begin the next circle
-				if theta >= 360:
-					theta = 0
-					r = r + inc_r
+		# 	while True:
+		# 		# if we finished one circle, move the radius out to begin the next circle
+		# 		if theta >= 360:
+		# 			theta = 0
+		# 			r = r + inc_r
 
-				# if we are at the outer most circle, stop the loop
-				if r > d/2:
-					break
+		# 		# if we are at the outer most circle, stop the loop
+		# 		if r > d/2:
+		# 			break
 
-				# convert polar to cartesian
-				x = cx + r * math.cos(math.radians(theta))
-				y = cy + r * math.sin(math.radians(theta))
+		# 		# convert polar to cartesian
+		# 		x = cx + r * math.cos(math.radians(theta))
+		# 		y = cy + r * math.sin(math.radians(theta))
 
-				points.append((x,y))
+		# 		points.append((x,y))
 
-				# increase the angle
-				theta = theta + inc_theta
+		# 		# increase the angle
+		# 		theta = theta + inc_theta
 
 		# start the loop
-		for (x, y) in points:
+		for (x, y) in points_coordinates:
 
 			# log the point
 			point_str = "x: " + "{:.3f}".format(x) + ", y: " + "{:.3f}".format(y)
@@ -299,11 +325,11 @@ def start_electroplating():
 
 			# move the head to calculated position
 			move_head(x=x, y=y)
-			time.sleep(1)
+			time.sleep(10)
 
 			# move the head down
 			move_head(z=min_z)
-			time.sleep(2)
+			time.sleep(20)
 
 			# signal the arduino to start electroplating
 			if current_mode:
@@ -321,6 +347,7 @@ def start_electroplating():
 				print(l)
 				f.write(l + "\n")
 				values = l.split(',')
+				print("this is values:", values)
 				cur = values[0]
 				tar_vol = values[1]
 				vol = values[2]
@@ -332,12 +359,14 @@ def start_electroplating():
 
 			# signal the arduino to stop electroplating
 			arduino_write("f")
+			readSerial()
+			readSerial()
 			print("off")
 			time.sleep(0.5)
 
 			# move the head up
 			move_head(z=max_z)
-			time.sleep(2)
+			time.sleep(10)
 
 		# We are done with the loop
 		move_head(z=travel_z)
@@ -436,13 +465,19 @@ set_center = tk.Button(tab1, text='SET CENTER', width=20, command=lambda : set_c
 move_to_center = tk.Button(tab1, text='MOVE TO CENTER', width=20, command=lambda : move_head(x=cen_x, y=cen_y)) ; move_to_center.grid(row=9, column=1, padx=5, pady=5)
 set_target_z = tk.Button(tab1, text='SET TARGET Z', width=20, command=lambda : set_target_z_position()) ; set_target_z.grid(row=10, column=1, padx=5, pady=5)
 move_to_target_z = tk.Button(tab1, text='MOVE TO TARGET Z', width=20, command=lambda : move_head(z=tar_z)) ; move_to_target_z.grid(row=11, column=1, padx=5, pady=5)
+set_point = tk.Button(tab1, text='Single Point ON', width=20, relief='sunken', command=lambda : set_point_mode()) ; set_point.grid(row=8, column=8, padx=5, pady=5)
+set_point1 = tk.Button(tab1, text='SET Point', width=20, command=lambda : set_a_point())
+points_label = ttk.Label(tab1, text="Using Center point", style='TLabel')
+points_label.grid(row = 9, column = 8, padx=5, pady=5)
+
+
 
 #Operational Parameters
 distance_label = ttk.Label(tab2, text="Distance of WE from CE (mm):", style='TLabel')
 distance_label.grid(row = 0, column = 0, sticky='w', padx=5, pady=5)
 duration_label = ttk.Label(tab2, text="Electrodeposition time (sec):", style='TLabel')
 duration_label.grid(row = 1, column = 0, sticky='w', padx=5, pady=5)
-current_label = ttk.Label(tab2, text="Set a Current (mV):", style='TLabel')
+current_label = ttk.Label(tab2, text="Set a Current (mA):", style='TLabel')
 current_label.grid(row = 2, column = 0, sticky='w', padx=5, pady=5)
 input_distance = tk.Text(tab2, height=1, width=5) ; input_distance.grid(row=0, column=1, sticky='w', padx=5, pady=5)
 input_duration = tk.Text(tab2, height=1, width=5) ; input_duration.grid(row=1, column=1, sticky='w', padx=5, pady=5)
@@ -450,6 +485,7 @@ input_current = tk.Text(tab2, height=1, width=5) ; input_current.grid(row=2, col
 set_distance = tk.Button(tab2, text='SET DISTANCE', width=20, command=lambda : set_distance_position()) ; set_distance.grid(row=0, column=2, padx=5, pady=5)
 set_duration = tk.Button(tab2, text='SET DURATION', width=20, command=lambda : set_duration_time()) ; set_duration.grid(row=1, column=2, padx=5, pady=5)
 set_current = tk.Button(tab2, text='SET CURRENT', width=20, command=lambda : set_current_target()) ; set_current.grid(row=2, column=2, padx=5, pady=5)
+
 
 #value display
 cur_label = tk.Label(tab3)
