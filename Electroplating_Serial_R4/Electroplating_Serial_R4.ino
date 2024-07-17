@@ -38,7 +38,7 @@ void setup()
 	analogWriteResolution(12);
 	analogReadResolution(14);
 
-	pwm.begin(1000.0f, 0.0f);
+	pwm.begin(980.0f, 0.0f);
 }
 
 void loop() 

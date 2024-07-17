@@ -218,6 +218,13 @@ def set_current_target():
 	# readSerial()
 	print("Current Updated to", target_current)
 
+def set_voltage_target():
+	global target_voltage
+	target_voltage = float(input_voltage.get(1.0, "end-1c")) # Need to figure out how to update this live during electroplating
+	# arduino_write("c " + str(target_current))
+	# readSerial()
+	print("Voltage Updated to", target_voltage)
+
 def set_point_mode():
 	global single_point, points_coordinates
 	if single_point:
@@ -230,6 +237,14 @@ def set_point_mode():
 		points_label.config(text="Using Center point")
 		points_coordinates = []
 	single_point = not single_point
+
+def set_mode_electroplating():
+	global current_mode
+	if current_mode:
+		set_mode.config(text="Voltage Mode", relief="raised")
+	else:
+		set_mode.config(text="Current Mode", relief="sunken")
+	current_mode = not current_mode
 
 def set_a_point():
 	global points_coordinates, pos_x, pos_y
@@ -412,12 +427,15 @@ tabControl = ttk.Notebook(m)
 tab1 = ttk.Frame(tabControl) 
 tab2 = ttk.Frame(tabControl)
 tab3 = ttk.Frame(tabControl)
+tab4 = ttk.Frame(tabControl)
 tab1.configure(style='TFrame')
 tab2.configure(style='TFrame')
 tab3.configure(style='TFrame')
+tab4.configure(style='TFrame')
 tabControl.add(tab1, text ='Calibration of the System') 
 tabControl.add(tab2, text ='Operational Parameters for Electrodeposition')
 tabControl.add(tab3, text ='Chronoamperometry Measurement') 
+tabControl.add(tab4, text ='Experimental Data Analysis')
 tabControl.pack(expand = 1, fill ="both") 
 
 # values
@@ -469,8 +487,7 @@ set_point = tk.Button(tab1, text='Single Point ON', width=20, relief='sunken', c
 set_point1 = tk.Button(tab1, text='SET Point', width=20, command=lambda : set_a_point())
 points_label = ttk.Label(tab1, text="Using Center point", style='TLabel')
 points_label.grid(row = 9, column = 8, padx=5, pady=5)
-
-
+set_mode = tk.Button(tab1, text='Current Mode', width=20, relief='sunken', command=lambda : set_mode_electroplating()) ; set_mode.grid(row=11, column=8, padx=5, pady=5)
 
 #Operational Parameters
 distance_label = ttk.Label(tab2, text="Distance of WE from CE (mm):", style='TLabel')
@@ -479,13 +496,16 @@ duration_label = ttk.Label(tab2, text="Electrodeposition time (sec):", style='TL
 duration_label.grid(row = 1, column = 0, sticky='w', padx=5, pady=5)
 current_label = ttk.Label(tab2, text="Set a Current (mA):", style='TLabel')
 current_label.grid(row = 2, column = 0, sticky='w', padx=5, pady=5)
+voltage_label = ttk.Label(tab2, text="Set a Voltage (V):", style='TLabel')
+voltage_label.grid(row = 3, column = 0, sticky='w', padx=5, pady=5)
 input_distance = tk.Text(tab2, height=1, width=5) ; input_distance.grid(row=0, column=1, sticky='w', padx=5, pady=5)
 input_duration = tk.Text(tab2, height=1, width=5) ; input_duration.grid(row=1, column=1, sticky='w', padx=5, pady=5)
 input_current = tk.Text(tab2, height=1, width=5) ; input_current.grid(row=2, column=1, sticky='w', padx=5, pady=5)
+input_voltage = tk.Text(tab2, height=1, width=5) ; input_voltage.grid(row=3, column=1, sticky='w', padx=5, pady=5)
 set_distance = tk.Button(tab2, text='SET DISTANCE', width=20, command=lambda : set_distance_position()) ; set_distance.grid(row=0, column=2, padx=5, pady=5)
 set_duration = tk.Button(tab2, text='SET DURATION', width=20, command=lambda : set_duration_time()) ; set_duration.grid(row=1, column=2, padx=5, pady=5)
 set_current = tk.Button(tab2, text='SET CURRENT', width=20, command=lambda : set_current_target()) ; set_current.grid(row=2, column=2, padx=5, pady=5)
-
+set_voltage = tk.Button(tab2, text='SET VOLTAGE', width=20, command=lambda : set_voltage_target()) ; set_voltage.grid(row=3, column=2, padx=5, pady=5)
 
 #value display
 cur_label = tk.Label(tab3)
