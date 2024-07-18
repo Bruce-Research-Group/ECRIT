@@ -440,7 +440,7 @@ tabControl.pack(expand = 1, fill ="both")
 
 # values
 cur = "current: no reading yet"
-vol = "voltage: no reading yet"
+vol = "actual voltage: no reading yet"
 tar_vol = "target voltage: no reading yet"
 vol_list = []
 time_list = []
@@ -471,14 +471,20 @@ up = tk.Button(tab1, text='↑', width=2, command=lambda : move_z(increment.get(
 up.grid(row=4, column=7, padx=20, pady=5)
 down = tk.Button(tab1, text='↓', width=2, command=lambda : move_z(-increment.get()))
 down.grid(row=6, column=7, padx=20, pady=5)
+z_label = ttk.Label(tab1, text="z-axis", style='TLabel')
+z_label.grid(row = 7, column = 7, padx=5, pady=5)
 left = tk.Button(tab1, text='←', width=2, command=lambda : move_x(-increment.get()))
 left.grid(row=5, column=3, padx=5, pady=5)
 right = tk.Button(tab1, text='→', width=2, command=lambda : move_x(increment.get()))
 right.grid(row=5, column=5, padx=5, pady=5)
+y_label = ttk.Label(tab1, text="y-axis", style='TLabel')
+y_label.grid(row = 5, column = 2, padx=5, pady=5)
 forward = tk.Button(tab1, text='↑', width=2, command=lambda : move_y(-increment.get()))
 forward.grid(row=4, column=4, padx=5, pady=5)
 back = tk.Button(tab1, text='↓', width=2, command=lambda : move_y(increment.get()))
 back.grid(row=6, column=4, padx=5, pady=5)
+x_label = ttk.Label(tab1, text="x-axis", style='TLabel')
+x_label.grid(row = 7, column = 4, padx=5, pady=5)
 set_center = tk.Button(tab1, text='SET CENTER', width=20, command=lambda : set_center_position()) ; set_center.grid(row=8, column=1, padx=5, pady=5)
 move_to_center = tk.Button(tab1, text='MOVE TO CENTER', width=20, command=lambda : move_head(x=cen_x, y=cen_y)) ; move_to_center.grid(row=9, column=1, padx=5, pady=5)
 set_target_z = tk.Button(tab1, text='SET TARGET Z', width=20, command=lambda : set_target_z_position()) ; set_target_z.grid(row=10, column=1, padx=5, pady=5)
