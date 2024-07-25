@@ -49,7 +49,7 @@ diff_z = config["diff_z"]
 
 # machine limits
 travel_z = config["travel_z"]
-max_z = 50
+max_z = 55.0
 min_z = config["min_z"]
 mac_z = 45.9
 max_y = 142.0
@@ -284,7 +284,7 @@ def start_electroplating():
 		f.write("target_voltage " + str(target_voltage) + "\n")
 		f.write("duration " + str(duration) + "s\n")
 		f.write("diff_z " + str(diff_z) + "mm\n")
-		f.write("points " + str(points) + "\n")
+		f.write("points " + str(len(points_coordinates)) + "\n")
 		f.write("inc_r " + str(inc_r) + "mm\n")
 		f.write("====================================\n")
 
@@ -371,6 +371,7 @@ def start_electroplating():
 				tar_vol_label.config(text=f'target voltage: {tar_vol}')
 				vol_list.append(float(vol))
 				time_list.append(float(time.time()-start))
+				time_remaining_label.config(text=f"time left: {int(duration+start-time.time())}")
 
 			# signal the arduino to stop electroplating
 			arduino_write("f")
@@ -477,18 +478,18 @@ left = tk.Button(tab1, text='←', width=2, command=lambda : move_x(-increment.g
 left.grid(row=5, column=3, padx=5, pady=5)
 right = tk.Button(tab1, text='→', width=2, command=lambda : move_x(increment.get()))
 right.grid(row=5, column=5, padx=5, pady=5)
-y_label = ttk.Label(tab1, text="y-axis", style='TLabel')
+y_label = ttk.Label(tab1, text="x-axis", style='TLabel')
 y_label.grid(row = 5, column = 2, padx=5, pady=5)
 forward = tk.Button(tab1, text='↑', width=2, command=lambda : move_y(-increment.get()))
 forward.grid(row=4, column=4, padx=5, pady=5)
 back = tk.Button(tab1, text='↓', width=2, command=lambda : move_y(increment.get()))
 back.grid(row=6, column=4, padx=5, pady=5)
-x_label = ttk.Label(tab1, text="x-axis", style='TLabel')
+x_label = ttk.Label(tab1, text="y-axis", style='TLabel')
 x_label.grid(row = 7, column = 4, padx=5, pady=5)
 set_center = tk.Button(tab1, text='SET CENTER', width=20, command=lambda : set_center_position()) ; set_center.grid(row=8, column=1, padx=5, pady=5)
 move_to_center = tk.Button(tab1, text='MOVE TO CENTER', width=20, command=lambda : move_head(x=cen_x, y=cen_y)) ; move_to_center.grid(row=9, column=1, padx=5, pady=5)
-set_target_z = tk.Button(tab1, text='SET TARGET Z', width=20, command=lambda : set_target_z_position()) ; set_target_z.grid(row=10, column=1, padx=5, pady=5)
-move_to_target_z = tk.Button(tab1, text='MOVE TO TARGET Z', width=20, command=lambda : move_head(z=tar_z)) ; move_to_target_z.grid(row=11, column=1, padx=5, pady=5)
+set_target_z = tk.Button(tab1, text='SET SURFACE Z', width=20, command=lambda : set_target_z_position()) ; set_target_z.grid(row=10, column=1, padx=5, pady=5)
+move_to_target_z = tk.Button(tab1, text='MOVE TO SURFACE Z', width=20, command=lambda : move_head(z=tar_z)) ; move_to_target_z.grid(row=11, column=1, padx=5, pady=5)
 set_point = tk.Button(tab1, text='Single Point ON', width=20, relief='sunken', command=lambda : set_point_mode()) ; set_point.grid(row=8, column=8, padx=5, pady=5)
 set_point1 = tk.Button(tab1, text='SET Point', width=20, command=lambda : set_a_point())
 points_label = ttk.Label(tab1, text="Using Center point", style='TLabel')
@@ -523,9 +524,12 @@ vol_label.grid(row=1, column=0, sticky='w', padx=5, pady=5)
 tar_vol_label = tk.Label(tab3)
 tar_vol_label.config(text=tar_vol)
 tar_vol_label.grid(row=2, column=0, sticky='w', padx=5, pady=5)
+time_remaining_label = tk.Label(tab3)
+time_remaining_label.config(text="time left: no reading yet")
+time_remaining_label.grid(row=3, column=0, sticky='w', padx=5, pady=5)
 
 #electroplating functions
-start = tk.Button(tab3, text='START ELECTROPLATING', command=lambda : do_task()) ; start.grid(row=3, column=0, sticky='w', padx=5, pady=5)
+start = tk.Button(tab3, text='START ELECTROPLATING', command=lambda : do_task()) ; start.grid(row=4, column=0, sticky='w', padx=5, pady=5)
 # ani = animation.FuncAnimation(fig, animate, interval=1000)
 # plt.show()
 m.mainloop()
