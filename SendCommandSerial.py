@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib import style
 import json
+import pandas as pd
 
 # =========
 
@@ -31,10 +32,10 @@ arduino_port = "/dev/ttyACM0"
 printer_port = "/dev/ttyUSB0"
 
 # Matplotlib Graph
-style.use('fivethirtyeight')
+# style.use('fivethirtyeight')
 
 # fig = plt.figure()
-# ax1 = fig.add_subplot(1,1,1)
+# ax1 = fig.add_subplot(111)
 
 # mode (True for current, False for voltage)
 current_mode = config["current_mode"]
@@ -274,8 +275,24 @@ def start_electroplating():
 		# set the printer to absolute mode
 		printer_write("G90")
 
-		# log file
+		# log file, csv file
+		csvdata_individual = {
+			'Current':[],
+			'Target Voltage':[],
+			'Actual Voltage':[],
+			'Time':[]
+		}
+
+		csvdata_accumulative = {
+			'Current':[],
+			'Target Voltage':[],
+			'Actual Voltage':[],
+			'Time':[]
+		}
+		
 		filename = "log_" + time.strftime("%Y%m%d-%H%M%S") + ".txt"
+		csvname_individual = "log_" + time.strftime("%Y%m%d-%H%M%S") + "indv" + ".csv"
+		csvname_accumulative = "log_" + time.strftime("%Y%m%d-%H%M%S") + "accu" + ".csv"
 		f = open(filename, "w")
 		f.write("Staring Time " + str(time.time()) + "\n")
 		# log settings
@@ -330,8 +347,20 @@ def start_electroplating():
 		# 		# increase the angle
 		# 		theta = theta + inc_theta
 
+		i=-1
 		# start the loop
 		for (x, y) in points_coordinates:
+			i+=1
+
+			# csv space
+			csvdata_individual['Current'].append("")
+			csvdata_individual['Target Voltage'].append("")
+			csvdata_individual['Actual Voltage'].append("")
+			csvdata_individual['Time'].append("")
+			csvdata_accumulative['Current'].append("")
+			csvdata_accumulative['Target Voltage'].append("")
+			csvdata_accumulative['Actual Voltage'].append("")
+			csvdata_accumulative['Time'].append("")
 
 			# log the point
 			point_str = "x: " + "{:.3f}".format(x) + ", y: " + "{:.3f}".format(y)
@@ -360,12 +389,20 @@ def start_electroplating():
 			while time.time() - start < duration: # loop until time has reached the set duration
 				l = arduino.readline().decode().strip()
 				print(l)
-				f.write(l + "\n")
+				f.write(l + "," + str(time.time()-start) + "\n")
 				values = l.split(',')
 				print("this is values:", values)
 				cur = values[0]
 				tar_vol = values[1]
 				vol = values[2]
+				csvdata_individual['Current'].append(float(cur))
+				csvdata_individual['Target Voltage'].append(float(tar_vol))
+				csvdata_individual['Actual Voltage'].append(float(vol))
+				csvdata_individual['Time'].append(float(time.time()-start))
+				csvdata_accumulative['Current'].append(float(cur))
+				csvdata_accumulative['Target Voltage'].append(float(tar_vol))
+				csvdata_accumulative['Actual Voltage'].append(float(vol))
+				csvdata_accumulative['Time'].append(float(time.time()-start)+ i*duration)
 				cur_label.config(text=f'current: {cur}')
 				vol_label.config(text=f'voltage: {vol}')
 				tar_vol_label.config(text=f'target voltage: {tar_vol}')
@@ -395,6 +432,10 @@ def start_electroplating():
 		move_head(z=travel_z)
 
 	finally:
+		df_indv = pd.DataFrame(csvdata_individual)
+		df_indv.to_csv(csvname_individual, index=False)
+		df_accu = pd.DataFrame(csvdata_accumulative)
+		df_accu.to_csv(csvname_accumulative, index=False)
 		arduino_write("f")
 		show_state("Done")
 		arduino.close()
@@ -433,9 +474,9 @@ tab1.configure(style='TFrame')
 tab2.configure(style='TFrame')
 tab3.configure(style='TFrame')
 tab4.configure(style='TFrame')
-tabControl.add(tab1, text ='Calibration of the System') 
-tabControl.add(tab2, text ='Operational Parameters for Electrodeposition')
-tabControl.add(tab3, text ='Chronoamperometry Measurement') 
+tabControl.add(tab1, text ='System Calibration') 
+tabControl.add(tab2, text ='Operational Parameter Settings')
+tabControl.add(tab3, text ='Starting Experiment') 
 tabControl.add(tab4, text ='Experimental Data Analysis')
 tabControl.pack(expand = 1, fill ="both") 
 
@@ -529,7 +570,7 @@ time_remaining_label.config(text="time left: no reading yet")
 time_remaining_label.grid(row=3, column=0, sticky='w', padx=5, pady=5)
 
 #electroplating functions
-start = tk.Button(tab3, text='START ELECTROPLATING', command=lambda : do_task()) ; start.grid(row=4, column=0, sticky='w', padx=5, pady=5)
+start = tk.Button(tab2, text='START ELECTROPLATING', width=20, command=lambda : do_task()) ; start.grid(row=4, column=2, sticky='w', padx=5, pady=5)
 # ani = animation.FuncAnimation(fig, animate, interval=1000)
 # plt.show()
 m.mainloop()
