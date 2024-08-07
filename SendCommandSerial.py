@@ -276,23 +276,16 @@ def start_electroplating():
 		printer_write("G90")
 
 		# log file, csv file
-		csvdata_individual = {
+		csvdata = {
 			'Current':[],
 			'Target Voltage':[],
 			'Actual Voltage':[],
-			'Time':[]
-		}
-
-		csvdata_accumulative = {
-			'Current':[],
-			'Target Voltage':[],
-			'Actual Voltage':[],
-			'Time':[]
+			'Time Individual':[],
+			'Time Accumulative':[]
 		}
 		
 		filename = "log_" + time.strftime("%Y%m%d-%H%M%S") + ".txt"
-		csvname_individual = "log_" + time.strftime("%Y%m%d-%H%M%S") + "indv" + ".csv"
-		csvname_accumulative = "log_" + time.strftime("%Y%m%d-%H%M%S") + "accu" + ".csv"
+		csvname = "log_" + time.strftime("%Y%m%d-%H%M%S") + ".csv"
 		f = open(filename, "w")
 		f.write("Staring Time " + str(time.time()) + "\n")
 		# log settings
@@ -353,14 +346,11 @@ def start_electroplating():
 			i+=1
 
 			# csv space
-			csvdata_individual['Current'].append("")
-			csvdata_individual['Target Voltage'].append("")
-			csvdata_individual['Actual Voltage'].append("")
-			csvdata_individual['Time'].append("")
-			csvdata_accumulative['Current'].append("")
-			csvdata_accumulative['Target Voltage'].append("")
-			csvdata_accumulative['Actual Voltage'].append("")
-			csvdata_accumulative['Time'].append("")
+			csvdata['Current'].append("")
+			csvdata['Target Voltage'].append("")
+			csvdata['Actual Voltage'].append("")
+			csvdata['Time Individual'].append("")
+			csvdata['Time Accumulative'].append("")
 
 			# log the point
 			point_str = "x: " + "{:.3f}".format(x) + ", y: " + "{:.3f}".format(y)
@@ -395,14 +385,11 @@ def start_electroplating():
 				cur = values[0]
 				tar_vol = values[1]
 				vol = values[2]
-				csvdata_individual['Current'].append(float(cur))
-				csvdata_individual['Target Voltage'].append(float(tar_vol))
-				csvdata_individual['Actual Voltage'].append(float(vol))
-				csvdata_individual['Time'].append(float(time.time()-start))
-				csvdata_accumulative['Current'].append(float(cur))
-				csvdata_accumulative['Target Voltage'].append(float(tar_vol))
-				csvdata_accumulative['Actual Voltage'].append(float(vol))
-				csvdata_accumulative['Time'].append(float(time.time()-start)+ i*duration)
+				csvdata['Current'].append(float(cur))
+				csvdata['Target Voltage'].append(float(tar_vol))
+				csvdata['Actual Voltage'].append(float(vol))
+				csvdata['Time Individual'].append(float(time.time()-start))
+				csvdata['Time Accumulative'].append(float(time.time()-start)+ i*duration)
 				cur_label.config(text=f'current: {cur}')
 				vol_label.config(text=f'voltage: {vol}')
 				tar_vol_label.config(text=f'target voltage: {tar_vol}')
@@ -432,10 +419,8 @@ def start_electroplating():
 		move_head(z=travel_z)
 
 	finally:
-		df_indv = pd.DataFrame(csvdata_individual)
-		df_indv.to_csv(csvname_individual, index=False)
-		df_accu = pd.DataFrame(csvdata_accumulative)
-		df_accu.to_csv(csvname_accumulative, index=False)
+		df = pd.DataFrame(csvdata)
+		df.to_csv(csvname, index=False)
 		arduino_write("f")
 		show_state("Done")
 		arduino.close()
