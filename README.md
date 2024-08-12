@@ -28,7 +28,7 @@ git clone https://github.com/Bruce-Research-Group/ECRIT
 ```bash
 pip install -r requirements.txt
 ```
-3. To run the web application and to view it in your browser, run 
+3. To run the gui and to view it, run the following command in the terminal 
 ```bash
 python SendCommandSerial.py
 ```
