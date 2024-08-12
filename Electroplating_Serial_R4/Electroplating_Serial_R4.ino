@@ -4,7 +4,7 @@
 #define V_OUT 6
 // Pin for current sensor input
 #define I_IN A1
-#define V_IN A0
+#define V_IN A2
 
 // the step size for adjusting the output voltage (V) in current mode
 float intervalSize = 0.005;

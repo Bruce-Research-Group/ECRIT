@@ -50,7 +50,6 @@ diff_z = config["diff_z"]
 
 # machine limits
 travel_z = config["travel_z"]
-max_z = 55.0
 min_z = config["min_z"]
 mac_z = 45.9
 max_y = 142.0
@@ -309,7 +308,7 @@ def start_electroplating():
 		time.sleep(5)
 
 		# move the head to the right height
-		move_head(z=max_z)
+		move_head(z=min_z+2)
 		show_state("To starting height")
 		time.sleep(30)
 
@@ -405,7 +404,7 @@ def start_electroplating():
 			time.sleep(0.5)
 
 			# move the head up
-			move_head(z=max_z)
+			move_head(z=min_z+2)
 			time.sleep(10)
 
 		# We are done with the loop
