@@ -1,10 +1,42 @@
-# Electroplating System
+<div align="center">
+	<h1>ECRIT Electroplating System</h1>
 
-This is a system for controlling an electroplating experiment using a 3D printer and Arduino.
+![Project Logo](/Screenshots/new1.png)
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+</div>
+
+## Table of Contents
+1. [About the Project](#about-the-project)
+2. [Prerequisites](#prerequisites)
+3. [Installation](#installation)
+4. [Usage](#usage)
+5. [License](#license)
+
+# About Ecrit
+This is a system for controlling an electroplating experiment using a 3D printer and Arduino Uno.
+
+## Prerequisites
+1. Ensure you have Python installed on your system. You can download it from [python.org](https://www.python.org/downloads/).
 
 ## Installation
-
 1. Clone the repository.
+```bash
+git clone https://github.com/Bruce-Research-Group/ECRIT
+```
 2. Install the required Python packages:
-   ```sh
-   pip install -r requirements.txt
+```bash
+pip install -r requirements.txt
+```
+3. To run the web application and to view it in your browser, run 
+```bash
+python SendCommandSerial.py
+```
+
+## Usage
+- A GUI to conduct electroplating experiments easily
+- A analysis-tool for quick access to experiment data / information
+
+## License 
+- Bruce Research Group
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
