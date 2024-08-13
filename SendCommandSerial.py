@@ -13,6 +13,9 @@ import matplotlib.animation as animation
 from matplotlib import style
 import json
 import pandas as pd
+import os
+import shutil
+import platform
 
 # =========
 
@@ -264,6 +267,22 @@ def animate(i):
 def do_task():
 	threading.Thread(target=start_electroplating, args=()).start()
 
+def download_data():
+	global csvname
+	# Determine the default download folder based on the operating system
+	if platform.system() == 'Windows':
+			download_folder = os.path.join(os.environ['USERPROFILE'], 'Downloads')
+	else:
+			download_folder = os.path.join(os.environ['HOME'], 'Downloads')
+
+	# Define the full path to save the file in the Downloads folder
+	destination_path = os.path.join(download_folder, os.path.basename(csvname))
+
+	# Copy the CSV file to the Downloads folder
+	shutil.copy(csvname, destination_path)
+	print(f"File downloaded to {destination_path}")
+	
+
 def start_electroplating():
 	global points_coordinates, vol, tar_vol, cur
 	try:
@@ -283,8 +302,9 @@ def start_electroplating():
 			'Time Accumulative':[]
 		}
 		
-		filename = "log_" + time.strftime("%Y%m%d-%H%M%S") + ".txt"
-		csvname = "log_" + time.strftime("%Y%m%d-%H%M%S") + ".csv"
+		timestamp = time.strftime("%Y%m%d-%H%M%S")
+		filename = "log_" + timestamp + ".txt"
+		csvname = "log_" + timestamp + ".csv"
 		f = open(filename, "w")
 		f.write("Staring Time " + str(time.time()) + "\n")
 		# log settings
@@ -555,6 +575,10 @@ time_remaining_label.grid(row=3, column=0, sticky='w', padx=5, pady=5)
 
 #electroplating functions
 start = tk.Button(tab2, text='START ELECTROPLATING', width=20, command=lambda : do_task()) ; start.grid(row=4, column=2, sticky='w', padx=5, pady=5)
+
+#data downloading
+download = tk.Button(tab4, text='Download Data', width=20, command=lambda : download_data()) ; start.grid(row=0, column=0, sticky='w', padx=5, pady=5)
+
 # ani = animation.FuncAnimation(fig, animate, interval=1000)
 # plt.show()
 m.mainloop()
