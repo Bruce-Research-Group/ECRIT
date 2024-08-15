@@ -86,6 +86,12 @@ inc_r = config["inc_r"]
 
 # points
 points_coordinates = []
+
+# naming
+timestamp = ''
+filename = ''
+csvname = ''
+
 # =========
 
 # find the actual min_z
@@ -284,7 +290,7 @@ def download_data():
 	
 
 def start_electroplating():
-	global points_coordinates, vol, tar_vol, cur
+	global points_coordinates, vol, tar_vol, cur, timestamp, filename, csvname
 	try:
 		# send reset command to arduino
 		arduino_write("r")
@@ -577,7 +583,7 @@ time_remaining_label.grid(row=3, column=0, sticky='w', padx=5, pady=5)
 start = tk.Button(tab2, text='START ELECTROPLATING', width=20, command=lambda : do_task()) ; start.grid(row=4, column=2, sticky='w', padx=5, pady=5)
 
 #data downloading
-download = tk.Button(tab4, text='Download Data', width=20, command=lambda : download_data()) ; start.grid(row=0, column=0, sticky='w', padx=5, pady=5)
+download = tk.Button(tab4, text='DOWNLOAD DATA', width=20, command=lambda : download_data()) ; download.grid(row=0, column=0, sticky='w', padx=5, pady=5)
 
 # ani = animation.FuncAnimation(fig, animate, interval=1000)
 # plt.show()
