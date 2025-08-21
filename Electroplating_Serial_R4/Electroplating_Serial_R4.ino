@@ -6,8 +6,8 @@
 #define I_IN A1
 #define V_IN A2
 
-// the step size for adjusting the output voltage (V) in current mode
-float intervalSize = 0.005;
+#define STEP_MS 50
+
 // the output voltage (V)
 float outputVoltage = 0.5;
 // the argument value from the serial command
@@ -17,8 +17,15 @@ float targetCurrent = 10;
 // the target voltage (V) in voltage mode
 float targetVoltage = 0.5;
 
-// proportion constant
-float kp = 0.01;
+// PID constants
+float kp = 0.01;    // proportional gain
+float ki = 0.001;   // integral gain
+float kd = 0.0001;  // derivative gain
+
+// PID variables
+float integral = 0;
+float previousError = 0;
+unsigned long previousTime = 0;
 
 // the status of the system
 bool active = false;
@@ -39,6 +46,14 @@ void setup()
 	analogReadResolution(14);
 
 	pwm.begin(980.0f, 0.0f);
+}
+
+void resetPID()
+{
+	// Reset PID variables
+	integral = 0;
+	previousError = 0;
+	previousTime = 0;
 }
 
 void loop() 
@@ -73,6 +88,8 @@ void loop()
 		active = true;
 		currentMode = true;
 		targetCurrent = argumentValue;
+		// Reset PID variables when switching to current mode
+		resetPID();
 		Serial.print("Hold Current, target = ");
 		Serial.print(targetCurrent);
 		Serial.println(" mA");
@@ -91,12 +108,14 @@ void loop()
 	{
 		// Reset Output Voltage
 		outputVoltage = 0.5;
+		resetPID();
 		Serial.println("Reset");
 	}
 	else if (command == "f")
 	{
 		// Turn off Output
 		active = false;
+		resetPID();
 		Serial.println("Turn off");
 		//analogWrite(V_OUT, 0);
 		pwm.pulse_perc(0);
@@ -115,7 +134,7 @@ void loop()
 	float output = (outputVoltage / 5.0) * 100.0;
 	pwm.pulse_perc(output);
 	//give it some time for the system to react
-	delay(50);
+	delay(STEP_MS);
 
 	// read current value
 	int sensorValue = analogRead(I_IN);
@@ -128,15 +147,42 @@ void loop()
 	// adjust the voltage to hold current in current mode
 	if (currentMode)
 	{
-		// adjust the output voltage base on the current
-		if (current < targetCurrent)
-		{
-			outputVoltage += (targetCurrent-current) * kp;  
+		// PID controller implementation
+		unsigned long currentTime = millis();
+		float deltaTime = (currentTime - previousTime) / 1000.0; // Convert to seconds
+		
+		if (previousTime == 0) {
+			deltaTime = STEP_MS / 1000.0; // Use STEP_MS for first iteration
 		}
-		else if (current > targetCurrent)
-		{
-			outputVoltage -= (current-targetCurrent) * kp;
+		
+		float error = targetCurrent - current;
+		
+		// Proportional term
+		float proportional = kp * error;
+		
+		// Integral term (with windup protection)
+		integral += error * deltaTime;
+		// Prevent integral windup by clamping
+		integral = constrain(integral, -100.0, 100.0);
+		float integralTerm = ki * integral;
+		
+		// Derivative term
+		float derivative = 0;
+		if (deltaTime > 0) {
+			derivative = (error - previousError) / deltaTime;
 		}
+		float derivativeTerm = kd * derivative;
+		
+		// Calculate PID output
+		float pidOutput = proportional + integralTerm + derivativeTerm;
+		
+		// Apply PID output to voltage
+		outputVoltage += pidOutput;
+		
+		// Update previous values for next iteration
+		previousError = error;
+		previousTime = currentTime;
+		
 		// limit the output voltage to between 0 and 5V
 		outputVoltage = constrain(outputVoltage, 0, 5);
 	}
