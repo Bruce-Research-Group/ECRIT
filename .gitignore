@@ -1,4 +1,6 @@
 experiment_logs
+*.csv
+*.txt
 
 # OS X
 .DS_Store

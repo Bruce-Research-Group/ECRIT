@@ -263,7 +263,7 @@ def set_a_point():
 
 def readSerial():
 	l = arduino.readline().decode()
-	print("this is what readSerial is printing", l, end="")
+	print("Arduino:", l, end="")
 
 def animate(i):
 	global vol_list, time_list
@@ -406,7 +406,6 @@ def start_electroplating():
 				print(l)
 				f.write(l + "," + str(time.time()-start) + "\n")
 				values = l.split(',')
-				print("this is values:", values)
 				cur = values[0]
 				tar_vol = values[1]
 				vol = values[2]
@@ -448,8 +447,8 @@ def start_electroplating():
 		df.to_csv(csvname, index=False)
 		arduino_write("f")
 		show_state("Done")
-		arduino.close()
-		printer.close()
+		#arduino.close()
+		#printer.close()
 		f.close()
 
 # gui
