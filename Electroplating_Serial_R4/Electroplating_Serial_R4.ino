@@ -18,9 +18,9 @@ float targetCurrent = 10;
 float targetVoltage = 0.5;
 
 // PID constants
-float kp = 0.01;    // proportional gain
-float ki = 0.001;   // integral gain
-float kd = 0.0001;  // derivative gain
+float kp = 0.10;    // proportional gain
+float ki = 0.10;   // integral gain
+float kd = 0.001;  // derivative gain
 
 // PID variables
 float integral = 0;
@@ -120,6 +120,18 @@ void loop()
 		//analogWrite(V_OUT, 0);
 		pwm.pulse_perc(0);
 	}
+  else if (command == "p")
+  {
+    kp = argumentValue;
+  }
+  else if (command == "i")
+  {
+    ki = argumentValue;
+  }
+  else if (command == "d")
+  {
+    kd = argumentValue;
+  }
 
 	// Update status LED
 	digitalWrite(LED_BUILTIN, active);
@@ -191,5 +203,6 @@ void loop()
 	Serial.print(",");
 	Serial.print(outputVoltage, 3);
 	Serial.print(",");
-  Serial.println(actualVoltage, 3);
+  Serial.print(actualVoltage, 3);
+  Serial.println();
 }
