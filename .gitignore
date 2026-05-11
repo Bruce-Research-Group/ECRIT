@@ -1,6 +1,7 @@
 experiment_logs
 *.csv
 *.txt
+.vscode/
 
 # OS X
 .DS_Store
