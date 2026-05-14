@@ -7,17 +7,21 @@ import serial.tools.list_ports
 import SelectPort
 import UtilUI
 
+exit = False
+
 with open("options.json","r") as f:
 		options = json.load(f)
 
 def startprogram():
     global root
+    exit = False
     root = Tk()
     root.title("Electrochemistry Experiment Setup")
     frm = ttk.Frame(root, padding=100,height=200,width=500)
     frm.grid()
     Button(frm,text="Start",command=lambda: autodetectports(root)).grid(column=0,row=0,pady=20,padx=100,columnspan=2)
     Button(frm,text="Configure\nPorts",command=lambda: SelectPort.selectport(root)).grid(column=4,row=4,ipady=10)
+    Button(frm,text="Quit",command=on_quit).grid(column=0,row=5)
     root.mainloop()
     # ttk.Label(frm, text="Select Arduino Port").grid(column=0, row=0)
     # ttk.Label(frm, text="Select Printer Port").grid(column=0, row=1)
@@ -35,9 +39,19 @@ def startprogram():
 def portopenerror(root):
     SelectPort.selectport(root)
     print("showcasing prompt")
+    exit=True
     msg = messagebox.askyesno(title="Try Again?",message="Attempt to start program again?")
     if msg:
         startprogram()
+    else:
+        exit=True
+
+def on_quit():
+    global exit
+    if not exit:
+        root.destroy()
+    exit = True
+    
 
 def autodetectports(root):
     arduino = False
@@ -89,6 +103,8 @@ def autodetectports(root):
     # for p in ports:
     #     print(p.device)
 
+def destroy_startmenuroot():
+    on_quit()
 
 # def openselectPort():
 #     root.destroy()
