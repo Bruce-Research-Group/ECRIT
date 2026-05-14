@@ -404,8 +404,12 @@ def start_electroplating():
 			while time.time() - start < duration: # loop until time has reached the set duration
 				l = arduino.readline().decode().strip()
 				print(l)
+				if (not l or "," not in l):
+					continue
 				f.write(l + "," + str(time.time()-start) + "\n")
 				values = l.split(',')
+				if (len(values) < 3):
+					continue
 				cur = values[0]
 				tar_vol = values[1]
 				vol = values[2]

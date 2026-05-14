@@ -95,14 +95,20 @@ static void handleCommand(const ParsedCommand &cmd)
 
 		case 'p':
 			if (cmd.hasArg) pid.kp = cmd.arg;
+			Serial_Pi.print("Set kp = ");
+			Serial_Pi.println(pid.kp, 4);
 			break;
 
 		case 'i':
 			if (cmd.hasArg) pid.ki = cmd.arg;
+			Serial_Pi.print("Set ki = ");
+			Serial_Pi.println(pid.ki, 4);
 			break;
 
 		case 'd':
 			if (cmd.hasArg) pid.kd = cmd.arg;
+			Serial_Pi.print("Set kd = ");
+			Serial_Pi.println(pid.kd, 4);
 			break;
 
 		case 'z':
@@ -224,17 +230,31 @@ void loop() {
 	}
 
 	// Stream output
-	Serial_Pi.print(lastMeasuredCurrent_mA, 4);
-	Serial_Pi.print(",");
-	Serial_Pi.print(outputVoltage, 3);
-	Serial_Pi.print(",");
-	if (isnan(psu.voltageReadbackV))
-	{
+	if (false) {
+		Serial_Pi.print(">current:");
+		Serial_Pi.print(lastMeasuredCurrent_mA, 4);
+		Serial_Pi.print(",voltage:");
 		Serial_Pi.print(outputVoltage, 3);
+		Serial_Pi.print(",readback_voltage:");
+		if (!isnan(psu.voltageReadbackV))		{
+			Serial_Pi.print(psu.voltageReadbackV, 3);
+		}else{
+			Serial_Pi.print("nan");
+		}
+		Serial_Pi.println();
+	} else {
+		Serial_Pi.print(lastMeasuredCurrent_mA, 4);
+		Serial_Pi.print(",");
+		Serial_Pi.print(outputVoltage, 3);
+		Serial_Pi.print(",");
+		if (isnan(psu.voltageReadbackV))
+		{
+			Serial_Pi.print(outputVoltage, 3);
+		}
+		else
+		{
+			Serial_Pi.print(psu.voltageReadbackV, 3);
+		}
+		Serial_Pi.println();
 	}
-	else
-	{
-		Serial_Pi.print(psu.voltageReadbackV, 3);
-	}
-	Serial_Pi.println();
 }
