@@ -4,9 +4,7 @@ from tkinter import messagebox
 import time
 
 def tooltip(txt,error=True,autoclose=False,close_time=1):
-
     top = Toplevel()
-    
 
     #checks whether tooltip is intended to inform user of error or deliver advice
     if error == True:
@@ -26,6 +24,12 @@ def tooltip(txt,error=True,autoclose=False,close_time=1):
     if autoclose:
         # time.sleep(10)
         top.after(close_time*1000, top.destroy)
+
+def Calculate_ScreenCenter(root):
+    width = root.winfo_screenwidth()
+    height = root.winfo_screenheight()
+
+    # x = (width/2)+root.
         
         
 #Code to test this file specifically

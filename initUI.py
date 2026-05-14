@@ -1,4 +1,5 @@
 import json
+import time
 from tkinter import *
 from tkinter import ttk
 from tkinter import messagebox
@@ -6,6 +7,7 @@ import serial
 import serial.tools.list_ports
 import SelectPort
 import UtilUI
+
 
 exit = False
 
@@ -16,13 +18,31 @@ def startprogram():
     global root
     exit = False
     root = Tk()
+    root.geometry("500x500")
     root.title("Electrochemistry Experiment Setup")
     frm = ttk.Frame(root, padding=100,height=200,width=500)
-    frm.grid()
-    Button(frm,text="Start",command=lambda: autodetectports(root)).grid(column=0,row=0,pady=20,padx=100,columnspan=2)
-    Button(frm,text="Configure\nPorts",command=lambda: SelectPort.selectport(root)).grid(column=4,row=4,ipady=10)
-    Button(frm,text="Quit",command=on_quit).grid(column=0,row=5)
+    # frm.grid(padx=50,pady=50)
+    frm.place()
+
+    #Start Program Buttons
+    startbtn = Button(frm,text="Start",command=lambda: autodetectports(root)).place(x=50,y=20)
+    # startbtn.grid(column=0,row=0)
+    # startbtn.place(anchor=CENTER)
+    # startbtn.place()
+
+
+    portsbtn = Button(frm,text="Configure\nPorts",command=lambda: SelectPort.selectport(root))
+    # portsbtn.grid(column=4,row=4,ipady=10,pady=20,padx=100)
+    portsbtn.place(anchor=CENTER,rely=-100)
+
+    quitbtn = Button(frm,text="Quit",command=on_quit)
+    # quitbtn.grid(column=0,row=1)
+    quitbtn.place(anchor=SE)
+    
     root.mainloop()
+    exit=True
+    print(exit)
+    print(exit == True)
     # ttk.Label(frm, text="Select Arduino Port").grid(column=0, row=0)
     # ttk.Label(frm, text="Select Printer Port").grid(column=0, row=1)
     # autodetectports()
@@ -48,9 +68,13 @@ def portopenerror(root):
 
 def on_quit():
     global exit
-    if not exit:
+    if exit == False:
+        print("Exiting...")
         root.destroy()
     exit = True
+
+def canquit():
+    return exit
     
 
 def autodetectports(root):
@@ -106,13 +130,11 @@ def autodetectports(root):
 def destroy_startmenuroot():
     on_quit()
 
-# def openselectPort():
-#     root.destroy()
-#     SelectPort.selectport()
-
 if __name__ == "__main__":
     # ser = serial.Serial('COM4')
     # print(ser.name) 
     # print(serial.tools.list_ports.comports().__len__())
     startprogram()
+    print("Can quit val: "+str(canquit()))
+    on_quit()
     # autodetectports()

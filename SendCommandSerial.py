@@ -56,6 +56,8 @@ def assignbasic_vals():
 	# fig = plt.figure()
 	# ax1 = fig.add_subplot(111)
 
+	global current_mode,target_current, target_voltage, duration, diff_z
+
 	# mode (True for current, False for voltage)
 	current_mode = config["current_mode"]
 	# target current in mA
@@ -67,28 +69,33 @@ def assignbasic_vals():
 	# distance between anode and cathode in mm
 	diff_z = config["diff_z"]
 
+	global min_z, max_z, min_y, max_y, max_x, min_x
 	# machine limits
 	travel_z = config["travel_z"]
 	min_z = config["min_z"]
-	mac_z = 45.9
+	max_z = 45.9
 	max_y = 142.0
 	min_y = 110.0
 	max_x = 160.0
 	min_x = 129.0
 
+	global x_limit, y_limit, z_limit
 	x_limit = config["x_limit"]
 	y_limit = config["y_limit"]
 	z_limit = config["z_limit"]
 
+	global pos_x, pos_y, pos_z
 	# current pos
 	pos_x = config["pos_x"]
 	pos_y = config["pos_y"]
 	pos_z = config["pos_z"]
 
+	global cen_x, cen_y
 	# center x,y
 	cen_x = config["cen_x"]
 	cen_y = config["cen_y"]
 
+	global tar_z, single_point, points, inc_r, points_coordinates
 	# target z
 	tar_z = config["tar_z"]
 
@@ -103,6 +110,7 @@ def assignbasic_vals():
 	# points
 	points_coordinates = []
 
+	global timestamp, filename, csvname
 	# naming
 	timestamp = ''
 	filename = ''
@@ -120,22 +128,23 @@ def assignbasic_vals():
 	# cx = 146
 	# cy = 124
 
+	global d, inc_theta
 	# find the diameter
 	d = min(max_x - min_x, max_y - min_y)
 	# find the angle between each points
 	inc_theta = 360.0 / points
 
-# SelectPort.selectport()
-
 def confirmports():
 	global arduino_port,printer_port
+	global arduino,printer
 	# connections
 	try:
 		arduino = serial.Serial(arduino_port, 9600)
 		print("Serial connected to", arduino.name)
 	except OSError:
 		UtilUI.tooltip("Could not open arduino port! Please update selected port")
-		SelectPort.selectport()
+		initUI.on_quit()
+		initUI.startprogram()
 		arduino_port = options["arduino_port"]
 		printer_port = options["printer_port"]
 		arduino = serial.Serial(arduino_port, 9600)
@@ -147,7 +156,8 @@ def confirmports():
 		print("Printer connected to", printer.name)
 	except OSError:
 		print("Could not open printer port! Please update selected port")
-		SelectPort.selectport()
+		initUI.on_quit()
+		initUI.startprogram()
 		arduino_port = options["arduino_port"]
 		printer_port = options["printer_port"]
 		printer = serial.Serial(printer_port, 9600)
@@ -273,7 +283,7 @@ def set_voltage_target():
 	# readSerial()
 	print("Voltage Updated to", target_voltage)
 
-def set_point_mode():
+def set_point_mode(set_point,set_point1,points_label):
 	global single_point, points_coordinates
 	if single_point:
 		set_point.config(text="Single Point OFF", relief="raised")
@@ -286,15 +296,28 @@ def set_point_mode():
 		points_coordinates = []
 	single_point = not single_point
 
-def set_mode_electroplating():
+def set_mode_electroplating(set_mode,input_current,set_current,input_voltage,set_voltage):
 	global current_mode
 	if current_mode:
 		set_mode.config(text="Voltage Mode", relief="raised")
+		
+		input_current.config(state="disabled")
+		set_current.config(state="disabled")
+
+		input_voltage.config(state="normal")
+		set_voltage.config(state="normal")
+		
 	else:
 		set_mode.config(text="Current Mode", relief="sunken")
+
+		input_voltage.config(state="disabled")
+		set_voltage.config(state="disabled")
+
+		input_current.config(state="normal")
+		set_current.config(state="normal")
 	current_mode = not current_mode
 
-def set_a_point():
+def set_a_point(points_label):
 	global points_coordinates, pos_x, pos_y
 	points_coordinates.append((pos_x, pos_y))
 	points_label.config(text=f'{len(points_coordinates)} points set')
@@ -491,148 +514,15 @@ def start_electroplating():
 		f.close()
 
 # gui
-def buildUI():
-	m = tk.Tk()
-	m.configure(background='#2E3440')
-	m.title('Electroplating GUI')
-	style = ttk.Style()
-	style.configure('TButton',
-					font=('Helvetica', 12),
-					padding=6,
-					foreground='#FFFFFF',
-					background='#4CAF50', # Green background color
-					borderwidth=0)
-	style.map('TButton',
-			foreground=[('pressed', '#FFFFFF'), ('active', '#FFFFFF'), ('!disabled', '#FFFFFF')],
-			background=[('pressed', '#388E3C'), ('active', '#45A049'), ('!disabled', '#4CAF50')])
-	style.configure('TLabel',
-									font=('Helvetica', 12),
-									foreground='#FFFFFF',
-									background = '#2E3440')
-	style.configure('TRadiobutton',
-									font=('Helvetica', 12),
-									foreground='#FFFFFF',
-									background = '#2E3440')
-	style.configure('TFrame', background='#2E3440')
-	tabControl = ttk.Notebook(m)
-	tab1 = ttk.Frame(tabControl) 
-	tab2 = ttk.Frame(tabControl)
-	tab3 = ttk.Frame(tabControl)
-	tab4 = ttk.Frame(tabControl)
-	tab1.configure(style='TFrame')
-	tab2.configure(style='TFrame')
-	tab3.configure(style='TFrame')
-	tab4.configure(style='TFrame')
-	tabControl.add(tab1, text ='System Calibration') 
-	tabControl.add(tab2, text ='Operational Parameter Settings')
-	tabControl.add(tab3, text ='Starting Experiment') 
-	tabControl.add(tab4, text ='Experimental Data Analysis')
-	tabControl.pack(expand = 1, fill ="both") 
-
-	# values
-	cur = "current: no reading yet"
-	vol = "actual voltage: no reading yet"
-	tar_vol = "target voltage: no reading yet"
-	vol_list = []
-	time_list = []
-
-	# homing function
-	homing = ttk.Button(tab1, text='Home', style='TButton',width=5, command=lambda : head_home()) ; homing.grid(row = 1, column = 1)
-
-	# setting increment
-	increment = tk.DoubleVar(None, 1.0)
-	increment_options = (('0.1', 0.1), ('1', 1.0), ('10', 10.0), ('100', 100.0))
-
-	increment_label = ttk.Label(tab1, text="Input the Increment Size:", style='TLabel')
-	increment_label.grid(row = 3, column = 0, padx=5, pady=5)
-	i=4
-	for increments in increment_options:
-		r = ttk.Radiobutton(
-			tab1,
-			text=increments[0],
-			value=increments[1],
-					style='TRadiobutton',
-			variable=increment
-		)
-		r.grid(row = i, column = 0, sticky='w', padx=5, pady=5)
-		i+=1
-
-	#movement functions
-	up = tk.Button(tab1, text='↑', width=2, command=lambda : move_z(increment.get()))
-	up.grid(row=4, column=7, padx=20, pady=5)
-	down = tk.Button(tab1, text='↓', width=2, command=lambda : move_z(-increment.get()))
-	down.grid(row=6, column=7, padx=20, pady=5)
-	z_label = ttk.Label(tab1, text="z-axis", style='TLabel')
-	z_label.grid(row = 7, column = 7, padx=5, pady=5)
-	left = tk.Button(tab1, text='←', width=2, command=lambda : move_x(-increment.get()))
-	left.grid(row=5, column=3, padx=5, pady=5)
-	right = tk.Button(tab1, text='→', width=2, command=lambda : move_x(increment.get()))
-	right.grid(row=5, column=5, padx=5, pady=5)
-	y_label = ttk.Label(tab1, text="x-axis", style='TLabel')
-	y_label.grid(row = 5, column = 2, padx=5, pady=5)
-	forward = tk.Button(tab1, text='↑', width=2, command=lambda : move_y(-increment.get()))
-	forward.grid(row=4, column=4, padx=5, pady=5)
-	back = tk.Button(tab1, text='↓', width=2, command=lambda : move_y(increment.get()))
-	back.grid(row=6, column=4, padx=5, pady=5)
-	x_label = ttk.Label(tab1, text="y-axis", style='TLabel')
-	x_label.grid(row = 7, column = 4, padx=5, pady=5)
-	set_center = tk.Button(tab1, text='SET CENTER', width=20, command=lambda : set_center_position()) ; set_center.grid(row=8, column=1, padx=5, pady=5)
-	move_to_center = tk.Button(tab1, text='MOVE TO CENTER', width=20, command=lambda : move_head(x=cen_x, y=cen_y)) ; move_to_center.grid(row=9, column=1, padx=5, pady=5)
-	set_target_z = tk.Button(tab1, text='SET SURFACE Z', width=20, command=lambda : set_target_z_position()) ; set_target_z.grid(row=10, column=1, padx=5, pady=5)
-	move_to_target_z = tk.Button(tab1, text='MOVE TO SURFACE Z', width=20, command=lambda : move_head(z=tar_z)) ; move_to_target_z.grid(row=11, column=1, padx=5, pady=5)
-	set_point = tk.Button(tab1, text='Single Point ON', width=20, relief='sunken', command=lambda : set_point_mode()) ; set_point.grid(row=8, column=8, padx=5, pady=5)
-	set_point1 = tk.Button(tab1, text='SET Point', width=20, command=lambda : set_a_point())
-	points_label = ttk.Label(tab1, text="Using Center point", style='TLabel')
-	points_label.grid(row = 9, column = 8, padx=5, pady=5)
-	set_mode = tk.Button(tab1, text='Current Mode', width=20, relief='sunken', command=lambda : set_mode_electroplating()) ; set_mode.grid(row=11, column=8, padx=5, pady=5)
-
-	#Operational Parameters
-	distance_label = ttk.Label(tab2, text="Distance of WE from CE (mm):", style='TLabel')
-	distance_label.grid(row = 0, column = 0, sticky='w', padx=5, pady=5)
-	duration_label = ttk.Label(tab2, text="Electrodeposition time (sec):", style='TLabel')
-	duration_label.grid(row = 1, column = 0, sticky='w', padx=5, pady=5)
-	current_label = ttk.Label(tab2, text="Set a Current (mA):", style='TLabel')
-	current_label.grid(row = 2, column = 0, sticky='w', padx=5, pady=5)
-	voltage_label = ttk.Label(tab2, text="Set a Voltage (V):", style='TLabel')
-	voltage_label.grid(row = 3, column = 0, sticky='w', padx=5, pady=5)
-	input_distance = tk.Text(tab2, height=1, width=5) ; input_distance.grid(row=0, column=1, sticky='w', padx=5, pady=5)
-	input_duration = tk.Text(tab2, height=1, width=5) ; input_duration.grid(row=1, column=1, sticky='w', padx=5, pady=5)
-	input_current = tk.Text(tab2, height=1, width=5) ; input_current.grid(row=2, column=1, sticky='w', padx=5, pady=5)
-	input_voltage = tk.Text(tab2, height=1, width=5) ; input_voltage.grid(row=3, column=1, sticky='w', padx=5, pady=5)
-	set_distance = tk.Button(tab2, text='SET DISTANCE', width=20, command=lambda : set_distance_position()) ; set_distance.grid(row=0, column=2, padx=5, pady=5)
-	set_duration = tk.Button(tab2, text='SET DURATION', width=20, command=lambda : set_duration_time()) ; set_duration.grid(row=1, column=2, padx=5, pady=5)
-	set_current = tk.Button(tab2, text='SET CURRENT', width=20, command=lambda : set_current_target()) ; set_current.grid(row=2, column=2, padx=5, pady=5)
-	set_voltage = tk.Button(tab2, text='SET VOLTAGE', width=20, command=lambda : set_voltage_target()) ; set_voltage.grid(row=3, column=2, padx=5, pady=5)
-
-	#value display
-	cur_label = tk.Label(tab3)
-	cur_label.config(text=cur)
-	cur_label.grid(row=0, column=0, sticky='w', padx=5, pady=5)
-	vol_label = tk.Label(tab3)
-	vol_label.config(text=vol)
-	vol_label.grid(row=1, column=0, sticky='w', padx=5, pady=5)
-	tar_vol_label = tk.Label(tab3)
-	tar_vol_label.config(text=tar_vol)
-	tar_vol_label.grid(row=2, column=0, sticky='w', padx=5, pady=5)
-	time_remaining_label = tk.Label(tab3)
-	time_remaining_label.config(text="time left: no reading yet")
-	time_remaining_label.grid(row=3, column=0, sticky='w', padx=5, pady=5)
-
-	#electroplating functions
-	start = tk.Button(tab2, text='START ELECTROPLATING', width=20, command=lambda : do_task()) ; start.grid(row=4, column=2, sticky='w', padx=5, pady=5)
-
-	#data downloading
-	download = tk.Button(tab4, text='DOWNLOAD DATA', width=20, command=lambda : download_data()) ; download.grid(row=0, column=0, sticky='w', padx=5, pady=5)
-
-	# ani = animation.FuncAnimation(fig, animate, interval=1000)
-	# plt.show()
-	m.mainloop()
+###
 
 def main():
 	initUI.startprogram()
 	setup()
 	assignbasic_vals()
-	confirmports()
+	# confirmports()
+	buildUI()
 
 if (__name__ == "__main__"):
 	main()
+	# buildUI()
