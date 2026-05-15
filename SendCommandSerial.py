@@ -69,7 +69,7 @@ def assignbasic_vals():
 	# distance between anode and cathode in mm
 	diff_z = config["diff_z"]
 
-	global min_z, max_z, min_y, max_y, max_x, min_x
+	global min_z, max_z, min_y, max_y, max_x, min_x,travel_z
 	# machine limits
 	travel_z = config["travel_z"]
 	min_z = config["min_z"]
@@ -258,25 +258,25 @@ def set_target_z_position():
 	tar_z = pos_z
 	print("target z set")
 
-def set_distance_position():
+def set_distance_position(input_distance):
 	global diff_z, tar_z, min_z
 	diff_z = float(input_distance.get(1.0, "end-1c"))
 	min_z = tar_z + diff_z
 	print("Distance Updated")
 	
-def set_duration_time():
+def set_duration_time(input_duration):
 	global duration
 	duration = float(input_duration.get(1.0, "end-1c"))
 	print("Duration Updated")
 
-def set_current_target():
+def set_current_target(input_current):
 	global target_current
 	target_current = float(input_current.get(1.0, "end-1c")) # Need to figure out how to update this live during electroplating
 	# arduino_write("c " + str(target_current))
 	# readSerial()
 	print("Current Updated to", target_current)
 
-def set_voltage_target():
+def set_voltage_target(input_voltage):
 	global target_voltage
 	target_voltage = float(input_voltage.get(1.0, "end-1c")) # Need to figure out how to update this live during electroplating
 	# arduino_write("c " + str(target_current))
@@ -332,8 +332,11 @@ def animate(i):
 	ax1.clear()
 	ax1.plot(vol_list, time_list)
 
-def do_task():
-	threading.Thread(target=start_electroplating, args=()).start()
+# def do_task():
+
+# 	threading.Thread(target=start_electroplating, args=()).start()
+
+
 
 def download_data():
 	global csvname
@@ -351,8 +354,8 @@ def download_data():
 	print(f"File downloaded to {destination_path}")
 	
 
-def start_electroplating():
-	global points_coordinates, vol, tar_vol, cur, timestamp, filename, csvname
+def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label):
+	global points_coordinates, vol, tar_vol, cur, timestamp, filename, csvname,csvdata
 	try:
 		# send reset command to arduino
 		arduino_write("r")
@@ -514,14 +517,22 @@ def start_electroplating():
 		f.close()
 
 # gui
+def buildMainUI():
+	UtilUI.startmainUI()
 ###
 
 def main():
+	#Basic Startup
 	initUI.startprogram()
 	setup()
 	assignbasic_vals()
-	# confirmports()
-	buildUI()
+
+	#Attempts to connect to ports and set printer to start position
+	#confirmports() 
+	#head_home()
+
+	#Launches Main Application Window
+	buildMainUI()
 
 if (__name__ == "__main__"):
 	main()

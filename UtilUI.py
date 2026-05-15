@@ -2,6 +2,7 @@ from tkinter import *
 from tkinter import ttk
 from tkinter import messagebox
 import time
+import ElectroplatingUI
 
 def tooltip(txt,error=True,autoclose=False,close_time=1):
     top = Toplevel()
@@ -30,6 +31,9 @@ def Calculate_ScreenCenter(root):
     height = root.winfo_screenheight()
 
     # x = (width/2)+root.
+
+def startmainUI():
+    ElectroplatingUI.buildUI()
         
         
 #Code to test this file specifically

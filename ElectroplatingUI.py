@@ -3,6 +3,7 @@ from tkinter import ttk
 from SendCommandSerial import *
 
 def buildUI():
+	global m
 	m = tk.Tk()
 	m.configure(background='#2E3440')
 	m.title('Electroplating GUI')
@@ -38,8 +39,9 @@ def buildUI():
 	tabControl.add(tab2, text ='Operational Parameter Settings')
 	tabControl.add(tab3, text ='Starting Experiment') 
 	tabControl.add(tab4, text ='Experimental Data Analysis')
-	tabControl.pack(expand = 1, fill ="both") 
-
+	tabControl.pack(expand = 1, fill ="both")
+	
+	global cur,vol,tar_vol,vol_list,time_list
 	# values
 	cur = "current: no reading yet"
 	vol = "actual voltage: no reading yet"
@@ -114,10 +116,10 @@ def buildUI():
 	input_duration = tk.Text(tab2, height=1, width=5) ; input_duration.grid(row=1, column=1, sticky='w', padx=5, pady=5)
 	input_current = tk.Text(tab2, height=1, width=5) ; input_current.grid(row=2, column=1, sticky='w', padx=5, pady=5)
 	input_voltage = tk.Text(tab2, height=1, width=5) ; input_voltage.grid(row=3, column=1, sticky='w', padx=5, pady=5)
-	set_distance = tk.Button(tab2, text='SET DISTANCE', width=20, command=lambda : set_distance_position()) ; set_distance.grid(row=0, column=2, padx=5, pady=5)
-	set_duration = tk.Button(tab2, text='SET DURATION', width=20, command=lambda : set_duration_time()) ; set_duration.grid(row=1, column=2, padx=5, pady=5)
-	set_current = tk.Button(tab2, text='SET CURRENT', width=20, command=lambda : set_current_target()) ; set_current.grid(row=2, column=2, padx=5, pady=5)
-	set_voltage = tk.Button(tab2, text='SET VOLTAGE', width=20, command=lambda : set_voltage_target()) ; set_voltage.grid(row=3, column=2, padx=5, pady=5)
+	set_distance = tk.Button(tab2, text='SET DISTANCE', width=20, command=lambda : set_distance_position(input_distance)) ; set_distance.grid(row=0, column=2, padx=5, pady=5)
+	set_duration = tk.Button(tab2, text='SET DURATION', width=20, command=lambda : set_duration_time(input_duration)) ; set_duration.grid(row=1, column=2, padx=5, pady=5)
+	set_current = tk.Button(tab2, text='SET CURRENT', width=20, command=lambda : set_current_target(input_current)) ; set_current.grid(row=2, column=2, padx=5, pady=5)
+	set_voltage = tk.Button(tab2, text='SET VOLTAGE', width=20, command=lambda : set_voltage_target(input_voltage)) ; set_voltage.grid(row=3, column=2, padx=5, pady=5)
 	
 	
 	set_voltage.config(state="disabled")
@@ -126,23 +128,18 @@ def buildUI():
     #setting commmand for current mode/voltage mode button
 	set_mode.config(command=lambda : set_mode_electroplating(set_mode,input_current,set_current,input_voltage,set_voltage))
 	
-    
-	#value display
-	cur_label = tk.Label(tab3)
-	cur_label.config(text=cur)
-	cur_label.grid(row=0, column=0, sticky='w', padx=5, pady=5)
-	vol_label = tk.Label(tab3)
-	vol_label.config(text=vol)
-	vol_label.grid(row=1, column=0, sticky='w', padx=5, pady=5)
-	tar_vol_label = tk.Label(tab3)
-	tar_vol_label.config(text=tar_vol)
-	tar_vol_label.grid(row=2, column=0, sticky='w', padx=5, pady=5)
-	time_remaining_label = tk.Label(tab3)
-	time_remaining_label.config(text="time left: no reading yet")
-	time_remaining_label.grid(row=3, column=0, sticky='w', padx=5, pady=5)
+	
+	global cur_label,vol_label,tar_vol_label,time_remaining_label, top,frm
+	top = tk.Toplevel(m)
+	frm = ttk.Frame(top,style="TFrame")
+	cur_label = tk.Label(frm)
+	vol_label = tk.Label(frm)
+	tar_vol_label = tk.Label(frm)
+	time_remaining_label = tk.Label(frm)
+	
 
 	#electroplating functions
-	start = tk.Button(tab2, text='START ELECTROPLATING', width=20, command=lambda : do_task()) ; start.grid(row=4, column=2, sticky='w', padx=5, pady=50)
+	start = tk.Button(tab2, text='START ELECTROPLATING', width=20, command=lambda : do_task(cur_label,vol_label,tar_vol_label,time_remaining_label)) ; start.grid(row=4, column=2, sticky='w', padx=5, pady=50)
 
 	#data downloading
 	download = tk.Button(tab4, text='DOWNLOAD DATA', width=20, command=lambda : download_data()) ; download.grid(row=0, column=0, sticky='w', padx=5, pady=5)
@@ -150,6 +147,26 @@ def buildUI():
 	# ani = animation.FuncAnimation(fig, animate, interval=1000)
 	# plt.show()
 	m.mainloop()
+
+def open_experiment_data():
+	#value display	
+	frm.grid()
+	
+	cur_label.config(text=cur)
+	cur_label.grid(row=0, column=0, sticky='w', padx=5, pady=5)
+	
+	vol_label.config(text=vol)
+	vol_label.grid(row=1, column=0, sticky='w', padx=5, pady=5)
+	
+	tar_vol_label.config(text=tar_vol)
+	tar_vol_label.grid(row=2, column=0, sticky='w', padx=5, pady=5)
+	
+	time_remaining_label.config(text="time left: no reading yet")
+	time_remaining_label.grid(row=3, column=0, sticky='w', padx=5, pady=5)
+
+def do_task(cur_label,vol_label,tar_vol_label,time_remaining_label):
+	open_experiment_data()
+	threading.Thread(target=lambda: start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label), args=()).start()
 	
 if __name__ == "__main__":
 	setup()
