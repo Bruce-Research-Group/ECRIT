@@ -5,6 +5,7 @@ import serial.tools.list_ports
 import math
 import tkinter as tk
 from tkinter import ttk
+from tkinter import messagebox
 import threading
 import matplotlib
 matplotlib.use('TkAgg')
@@ -188,6 +189,12 @@ def move_head(x = None, y = None, z = None):
 		pos_z = z
 	printer_write(command)
 
+def move_head_center():
+	move_confirm = messagebox.askokcancel(message="Move printer head to center?")
+	if move_confirm:
+		move_head(x=cen_x, y=cen_y)
+	# tk.Message(text="Move printer head to center?",)
+
 def show_state(state):
 	printer_write("M117 " + state)
 	print(state)
@@ -260,28 +267,48 @@ def set_target_z_position():
 
 def set_distance_position(input_distance):
 	global diff_z, tar_z, min_z
+	# print(repr(input_distance.get("1.0","end-1c")))
+	if input_distance.get("1.0","end-1c") == "":
+		messagebox.showerror(message="Please input proper distance value that contains no symbols or letters aside from '.' and numbers.")
+		return False
 	diff_z = float(input_distance.get(1.0, "end-1c"))
 	min_z = tar_z + diff_z
 	print("Distance Updated")
+	return True
 	
 def set_duration_time(input_duration):
 	global duration
+	if input_duration.get("1.0","end-1c") == "":
+		messagebox.showerror(message="Please input proper duration value that contains no symbols or letters aside from '.' and numbers.")
+		return False
 	duration = float(input_duration.get(1.0, "end-1c"))
 	print("Duration Updated")
+	return True
 
 def set_current_target(input_current):
 	global target_current
+	if input_current.get("1.0","end-1c") == "":
+		messagebox.showerror(message="Please input proper current value that contains no symbols or letters aside from '.' and numbers.")
+		return False
 	target_current = float(input_current.get(1.0, "end-1c")) # Need to figure out how to update this live during electroplating
 	# arduino_write("c " + str(target_current))
 	# readSerial()
 	print("Current Updated to", target_current)
+	return True
+
+def get_current_mode():
+	return current_mode
 
 def set_voltage_target(input_voltage):
 	global target_voltage
+	if input_voltage.get("1.0","end-1c") == "":
+		messagebox.showerror(message="Please input proper voltage value that contains no symbols or letters aside from '.' and numbers.")
+		return False
 	target_voltage = float(input_voltage.get(1.0, "end-1c")) # Need to figure out how to update this live during electroplating
 	# arduino_write("c " + str(target_current))
 	# readSerial()
 	print("Voltage Updated to", target_voltage)
+	return True
 
 def set_point_mode(set_point,set_point1,points_label):
 	global single_point, points_coordinates
@@ -319,9 +346,12 @@ def set_mode_electroplating(set_mode,input_current,set_current,input_voltage,set
 
 def set_a_point(points_label):
 	global points_coordinates, pos_x, pos_y
-	points_coordinates.append((pos_x, pos_y))
-	points_label.config(text=f'{len(points_coordinates)} points set')
-	print("point set at", pos_x, pos_y)
+	if (pos_x,pos_y) not in points_coordinates:
+		points_coordinates.append((pos_x, pos_y))
+		points_label.config(text=f'{len(points_coordinates)} points set')
+		print("point set at", pos_x, pos_y)
+	else:
+		print(f"A point is already set at ({pos_x},{pos_y})")
 
 def readSerial():
 	l = arduino.readline().decode()
