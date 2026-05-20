@@ -24,44 +24,29 @@ def startprogram():
     global root
     exit = False
     root = Tk()
-    root.geometry("500x500")
+    root.config(bg="#2E3440")
     root.title("Electrochemistry Experiment Setup")
-    frm = ttk.Frame(root, padding=100,height=200,width=500)
-    # frm.grid(padx=50,pady=50)
-    frm.pack()
+
+    frm = Frame(root, bg="#2E3440")
+    frm.grid(padx=50,pady=50)
+    frm.grid_rowconfigure(list(range(0,10)),weight=1)
+    frm.grid_columnconfigure(list(range(0,10)),weight=1)
 
     #Start Program Buttons
-    startbtn = Button(frm,text="Start",command=lambda: autodetectports(root)).place(x=50,y=20)
-    # startbtn.grid(column=0,row=0)
-    # startbtn.place(anchor=CENTER)
-    # startbtn.place()
-
+    startbtn = Button(frm,text="Start",command=lambda: autodetectports(root),width=20)
+    startbtn.grid(column=0,row=0,pady=50)
 
     portsbtn = Button(frm,text="Configure\nPorts",command=lambda: SelectPort.selectport(root))
-    # portsbtn.grid(column=4,row=4,ipady=10,pady=20,padx=100)
-    portsbtn.place(anchor=CENTER)
+    portsbtn.grid(column=4,row=4,ipady=10,padx=20)
 
-    quitbtn = Button(frm,text="Quit",command=on_quit)
-    # quitbtn.grid(column=0,row=1)
-    quitbtn.place(anchor=SE)
+    quitbtn = Button(frm,text="Quit",command=on_quit,width=15)
+    quitbtn.grid(column=0,row=1,padx=40,pady=40)
     
     root.mainloop()
     exit=True
-    print(exit)
-    print(exit == True)
-    # ttk.Label(frm, text="Select Arduino Port").grid(column=0, row=0)
-    # ttk.Label(frm, text="Select Printer Port").grid(column=0, row=1)
-    # autodetectports()
-
-    # global root
-    # root = Tk()
-    # root.title("Update Connected Ports?")
-    # frm = ttk.Frame(root)
-    # frm.grid()
-    # ttk.Label(frm,text="Select a new Port?").grid(column=1,row=0)
-    # ttk.Button(frm,text="Yes",command=openselectPort).grid(column=0,row=1)
-    # ttk.Button(frm,text="No",command=root.destroy).grid(column=2,row=1)
-    # root.mainloop()
+    # print(exit)
+    # print(exit == True)
+    
 def portopenerror(root):
     SelectPort.selectport(root)
     # print("showcasing prompt")
@@ -120,18 +105,6 @@ def autodetectports(root):
             UtilUI.tooltip("Could not open either port!",autoclose=True)
         # SelectPort.selectport(root)
         portopenerror(root)
-        # print("ports were not valid")
-        # SelectPort.selectport()
-        # messagebox.askquestion(title="Try Again?",message="Attempt to open ports with new configuration?",type=YESNO)
-    # UtilUI.tooltip("Valid ports found! Starting Program...",autoclose=True)
-        
-
-    # ports = serial.tools.list_ports.comports()
-    # if ports.__len__() <2:
-    #     UtilUI.tooltip("Insufficient Number of Ports!")
-
-    # for p in ports:
-    #     print(p.device)
 
 def destroy_startmenuroot():
     on_quit()
