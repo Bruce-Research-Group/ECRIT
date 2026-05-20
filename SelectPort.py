@@ -34,7 +34,7 @@ def selectport(root):
     
 
     #confirmation button
-    conbtn = ttk.Button(frm, text="Confirm", command=lambda: confirmport(root)).grid(column=1, row=2)
+    conbtn = ttk.Button(frm, text="Confirm", command=lambda: confirmport(frm)).grid(column=1, row=2)
     quitbtn = ttk.Button(frm,text="Cancel",command=frm.destroy).grid(column=1,row=3)
     frm.mainloop()
     print("exited mainloop")

@@ -11,8 +11,14 @@ import UtilUI
 
 exit = False
 
-with open("options.json","r") as f:
-		options = json.load(f)
+try:
+    with open("options.json","r") as f:
+            options = json.load(f)
+except:
+    with open("options.json","w") as f:
+        placeholder = {"arduino_port":"","printer_port":""}
+        json.dump(placeholder,f)
+    options = json.load(f)
 
 def startprogram():
     global root
@@ -22,7 +28,7 @@ def startprogram():
     root.title("Electrochemistry Experiment Setup")
     frm = ttk.Frame(root, padding=100,height=200,width=500)
     # frm.grid(padx=50,pady=50)
-    frm.place()
+    frm.pack()
 
     #Start Program Buttons
     startbtn = Button(frm,text="Start",command=lambda: autodetectports(root)).place(x=50,y=20)
@@ -33,7 +39,7 @@ def startprogram():
 
     portsbtn = Button(frm,text="Configure\nPorts",command=lambda: SelectPort.selectport(root))
     # portsbtn.grid(column=4,row=4,ipady=10,pady=20,padx=100)
-    portsbtn.place(anchor=CENTER,rely=-100)
+    portsbtn.place(anchor=CENTER)
 
     quitbtn = Button(frm,text="Quit",command=on_quit)
     # quitbtn.grid(column=0,row=1)
@@ -58,7 +64,7 @@ def startprogram():
     # root.mainloop()
 def portopenerror(root):
     SelectPort.selectport(root)
-    print("showcasing prompt")
+    # print("showcasing prompt")
     exit=True
     msg = messagebox.askyesno(title="Try Again?",message="Attempt to start program again?")
     if msg:
@@ -135,6 +141,6 @@ if __name__ == "__main__":
     # print(ser.name) 
     # print(serial.tools.list_ports.comports().__len__())
     startprogram()
-    print("Can quit val: "+str(canquit()))
-    on_quit()
+    # print("Can quit val: "+str(canquit()))
+    # on_quit()
     # autodetectports()

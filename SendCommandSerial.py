@@ -344,14 +344,26 @@ def set_mode_electroplating(set_mode,input_current,set_current,input_voltage,set
 		set_current.config(state="normal")
 	current_mode = not current_mode
 
-def set_a_point(points_label):
+def set_a_point(points_label,undo_point):
 	global points_coordinates, pos_x, pos_y
 	if (pos_x,pos_y) not in points_coordinates:
+		undo_point.config(state="normal")
 		points_coordinates.append((pos_x, pos_y))
 		points_label.config(text=f'{len(points_coordinates)} points set')
 		print("point set at", pos_x, pos_y)
 	else:
 		print(f"A point is already set at ({pos_x},{pos_y})")
+
+def undo_set_point(points_label,undo_point):
+	if len(points_coordinates) == 0:
+		print("No points to remove.")
+		return
+	print(f"point: {points_coordinates.pop()} removed!")
+	if len(points_coordinates) == 0:
+		points_label.config(text="Using Center Point")
+		undo_point.config(state="disabled")
+
+		
 
 def readSerial():
 	l = arduino.readline().decode()
@@ -542,6 +554,7 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label)
 		df.to_csv(csvname, index=False)
 		arduino_write("f")
 		show_state("Done")
+		download_data()
 		#arduino.close()
 		#printer.close()
 		f.close()
