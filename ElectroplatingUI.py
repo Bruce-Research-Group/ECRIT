@@ -56,13 +56,13 @@ def build_controllerUI():
 	root.grid_columnconfigure(list(range(0,1)),weight=1)
 	root.grid_rowconfigure(list(range(0,1)),weight=1)
 
-	control_frm = tk.Frame(root,bg="#646f7a",borderwidth=100,border=5,padx=20,pady=20)
+	control_frm = tk.Frame(root,bg="#2E3440",borderwidth=100,border=5,padx=20,pady=20)
 	control_frm.grid(column=0,row=0)
 	control_frm.grid_columnconfigure(list(range(0,12)),weight=1)
 	control_frm.grid_rowconfigure(list(range(0,12)),weight=1)
 	
-	btn_frm = ttk.Frame(root)
-	btn_frm.grid(column=1,row=0)
+	btn_frm = tk.Frame(root,bg="#646f7a")
+	btn_frm.grid(column=0,row=1,ipadx=150)
 	btn_frm.grid_columnconfigure(list(range(0,15)),weight=1)
 	btn_frm.grid_columnconfigure(list(range(0,15)),weight=1)
 	
@@ -132,8 +132,8 @@ def build_controllerUI():
 	move_to_center = tk.Button(control_frm, text='⦿', width=2, command=lambda : move_head_center()) ; #move_to_center.grid(row=5, column=4, padx=5, pady=5)
 	set_target_z = tk.Button(btn_frm, text='Set Baseline Height', width=20, command=lambda : set_target_z_position()) ; set_target_z.grid(row=10, column=1, padx=5, pady=5)
 	move_to_target_z = tk.Button(control_frm, text='Move To Surface Z', width=20, command=lambda : move_head(z=tar_z)) #; move_to_target_z.grid(row=11, column=1, padx=5, pady=5)
-	points_label = ttk.Label(btn_frm, text="Using Center point", style='TLabel')
-	points_label.grid(row = 9, column = 8, padx=5, pady=5)
+	points_label = tk.Label(btn_frm, text="Using Center point",fg="white",font="Helvetica",bg="#646f7a")
+	points_label.grid(row = 9, column = 8, padx=5, pady=15)
 	
 	# set_point = tk.Button(btn_frm, text='Single Point ON', width=20, relief='sunken') ; #set_point.grid(row=8, column=8, padx=5, pady=5)
 	# set_point.config(command=lambda : set_point_mode(set_point,set_point1,points_label))
@@ -179,21 +179,24 @@ def build_param_menu():
 	set_current = tk.Button(param_frm, text='SET CURRENT', width=20, command=lambda : set_current_target(input_current)) ; #set_current.grid(row=2, column=2, padx=5, pady=5)
 	set_voltage = tk.Button(param_frm, text='SET VOLTAGE', width=20, command=lambda : set_voltage_target(input_voltage)) ; #set_voltage.grid(row=3, column=2, padx=5, pady=5)
 	
+	input_voltage.config(state="disabled")
+	voltage_label.config(state="disabled")
 	
 	
 	set_voltage.config(state="disabled")
 	input_voltage.config(state="disabled")
+
 	ttk.Label(param_frm,text="Set Current/Voltage Mode:",style='TLabel').grid(row=0,column=8, padx=40, pady=5)
 	set_mode = tk.Button(param_frm, text='Current Mode', width=20, relief='sunken') ; set_mode.grid(row=1, column=8, padx=15, pady=5)
 
 	
     #setting commmand for current mode/voltage mode button
-	set_mode.config(command=lambda : set_mode_electroplating(set_mode,input_current,set_current,input_voltage,set_voltage))
+	set_mode.config(command=lambda : set_mode_electroplating(set_mode,input_current,set_current,input_voltage,set_voltage,current_label,voltage_label))
 	
-	start_btn = tk.Button(param_frm,text="▶ START ELECTOPLATING!",width=20,command=lambda : do_task())
-	start_btn.grid(row=11,column=8)
+	start_btn = tk.Button(param_frm,text="▶ START ELECTOPLATING!",width=20,command=lambda : do_task(),bg="#3E9B8B",fg="white",font="Helvetica 10 bold")
+	start_btn.grid(row=11,column=8,ipadx=5)
 
-	returnbtn = tk.Button(param_frm,text="Return to\nController",width=20,command=lambda: open_controller()); returnbtn.grid(column=0,row=11,pady=15)
+	returnbtn = tk.Button(param_frm,text="Return to\nController",width=20,command=lambda: open_controller(),bg="#7A3A30",fg="white"); returnbtn.grid(column=0,row=11,pady=15)
 
 
 def open_experiment_data():

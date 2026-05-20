@@ -323,25 +323,33 @@ def set_point_mode(set_point,set_point1,points_label):
 		points_coordinates = []
 	single_point = not single_point
 
-def set_mode_electroplating(set_mode,input_current,set_current,input_voltage,set_voltage):
+def set_mode_electroplating(set_mode,input_current,set_current,input_voltage,set_voltage,current_label,voltage_label):
 	global current_mode
 	if current_mode:
 		set_mode.config(text="Voltage Mode", relief="raised")
+
+		input_current.delete('1.0', "end")
 		
 		input_current.config(state="disabled")
 		set_current.config(state="disabled")
+		current_label.config(state="disabled")
 
 		input_voltage.config(state="normal")
 		set_voltage.config(state="normal")
+		voltage_label.config(state="normal")
 		
 	else:
 		set_mode.config(text="Current Mode", relief="sunken")
 
+		input_voltage.delete('1.0', "end")
+
 		input_voltage.config(state="disabled")
 		set_voltage.config(state="disabled")
+		voltage_label.config(state="disabled")
 
 		input_current.config(state="normal")
 		set_current.config(state="normal")
+		current_label.config(state="normal")
 	current_mode = not current_mode
 
 def set_a_point(points_label,undo_point):
