@@ -299,6 +299,10 @@ def set_current_target(input_current):
 def get_current_mode():
 	return current_mode
 
+def set_current_mode_val(val):
+	global current_mode
+	current_mode = val
+
 def set_voltage_target(input_voltage):
 	global target_voltage
 	if input_voltage.get("1.0","end-1c") == "":
@@ -352,6 +356,20 @@ def set_mode_electroplating(set_mode,input_current,set_current,input_voltage,set
 		current_label.config(state="normal")
 	current_mode = not current_mode
 
+def set_current_mode(set_mode,input_current,set_current,input_voltage,set_voltage,current_label,voltage_label,set_volt,set_curr):
+	set_current_mode_val(False)
+	set_volt.config(bg="white")
+	set_curr.config(bg="#b1c6eb")
+	set_mode_electroplating(set_mode,input_current,set_current,input_voltage,set_voltage,current_label,voltage_label)
+
+
+def set_voltage_mode(set_mode,input_current,set_current,input_voltage,set_voltage,current_label,voltage_label,set_volt,set_curr):
+	set_current_mode_val(True)
+	set_volt.config(bg="#b1c6eb")
+	set_curr.config(bg="white")
+	set_mode_electroplating(set_mode,input_current,set_current,input_voltage,set_voltage,current_label,voltage_label)
+
+
 def set_a_point(points_label,undo_point):
 	global points_coordinates, pos_x, pos_y
 	if (pos_x,pos_y) not in points_coordinates:
@@ -368,7 +386,7 @@ def undo_set_point(points_label,undo_point):
 		return
 	print(f"point: {points_coordinates.pop()} removed!")
 	if len(points_coordinates) == 0:
-		points_label.config(text="Using Center Point")
+		points_label.config(text="0")
 		undo_point.config(state="disabled")
 
 		

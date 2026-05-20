@@ -26,23 +26,12 @@ def buildUI():
 									foreground='#FFFFFF',
 									background = '#2E3440')
 	style.configure('TFrame', background='#2E3440')
-	# tabControl = ttk.Notebook(m)
-	# tab1 = ttk.Frame(tabControl) 
-	# tab2 = ttk.Frame(tabControl)
-	# tab4 = ttk.Frame(tabControl)
-	# tab1.configure(style='TFrame')
-	# tab2.configure(style='TFrame')
-	# tab4.configure(style='TFrame')
-	# tabControl.add(tab1, text ='System Calibration') 
-	# tabControl.add(tab2, text ='Operational Parameter Settings')
-	# tabControl.add(tab4, text ='Experimental Data Analysis')
-	# tabControl.pack(expand = 1, fill ="both")
 	
 	global cur,vol,tar_vol,vol_list,time_list
 	# values
-	cur = "current: no reading yet"
-	vol = "actual voltage: no reading yet"
-	tar_vol = "target voltage: no reading yet"
+	cur = "Current: no reading yet"
+	vol = "Actual Voltage: no reading yet"
+	tar_vol = "Target Voltage: no reading yet"
 	vol_list = []
 	time_list = []
 	
@@ -68,7 +57,7 @@ def build_controllerUI():
 	
 
 	# homing function
-	homing = tk.Button(control_frm, text='Home',width=5, command=lambda : head_home()) ; homing.grid(row = 7, column = 1)
+	homing = tk.Button(control_frm, text='Home',width=5, command=lambda : head_home()) ; homing.grid(row = 3, column = 0,padx=(0,200))
 
 
 	# setting increment
@@ -76,7 +65,7 @@ def build_controllerUI():
 	increment_options = (('0.1', 0.1), ('1', 1.0), ('10', 10.0), ('100', 100.0))
 
 	increment_label = ttk.Label(control_frm, text="Select Printer Step Size (mm):", style='TLabel')
-	increment_label.grid(row = 3, column = 0, padx=5, pady=5)
+	increment_label.grid(row = 3, column = 1, padx=5, pady=5)
 	i=4
 	for increments in increment_options:
 		r = ttk.Radiobutton(
@@ -86,7 +75,7 @@ def build_controllerUI():
 					style='TRadiobutton',
 			variable=increment
 		)
-		r.grid(row = i, column = 0, sticky='w', padx=5, pady=5)
+		r.grid(row = i, column = 1, sticky='w', padx=5, pady=5)
 		i+=1
 
 	#movement functions
@@ -132,14 +121,14 @@ def build_controllerUI():
 	move_to_center = tk.Button(control_frm, text='⦿', width=2, command=lambda : move_head_center()) ; #move_to_center.grid(row=5, column=4, padx=5, pady=5)
 	set_target_z = tk.Button(btn_frm, text='Set Baseline Height', width=20, command=lambda : set_target_z_position()) ; set_target_z.grid(row=10, column=1, padx=5, pady=5)
 	move_to_target_z = tk.Button(control_frm, text='Move To Surface Z', width=20, command=lambda : move_head(z=tar_z)) #; move_to_target_z.grid(row=11, column=1, padx=5, pady=5)
-	points_label = tk.Label(btn_frm, text="Using Center point",fg="white",font="Helvetica",bg="#646f7a")
+	points_label = tk.Label(btn_frm, text="0",fg="white",font="Helvetica",bg="#646f7a")
 	points_label.grid(row = 9, column = 8, padx=5, pady=15)
 	
 	# set_point = tk.Button(btn_frm, text='Single Point ON', width=20, relief='sunken') ; #set_point.grid(row=8, column=8, padx=5, pady=5)
 	# set_point.config(command=lambda : set_point_mode(set_point,set_point1,points_label))
-	set_params = tk.Button(btn_frm,text="Set Electroplating Variables",width=20,command=lambda:open_param_menu(),bg="#3E9B8B",fg="white") ; set_params.grid(row=12,column=8, padx=5, pady=50)
+	set_params = tk.Button(btn_frm,text="Next",width=20,command=lambda:open_param_menu(),bg="#3E9B8B",fg="white",font="Helvetica 10 bold") ; set_params.grid(row=12,column=9, pady=(50,10),ipadx=10)
 	undo_point = tk.Button(btn_frm,text="↩ Undo Geometric Area") ; undo_point.grid(row=11,column=8)
-	undo_point.config(command=lambda:undo_set_point(points_label,undo_point))
+	undo_point.config(command=lambda:undo_set_point(points_label,undo_point),state="disabled")
 	set_point1 = tk.Button(btn_frm, text='Set Geometric Area', width=20, command=lambda : set_a_point(points_label,undo_point))
 	set_point1.grid(row=10, column=8, padx=5, pady=5)
 
@@ -162,9 +151,9 @@ def build_param_menu():
 	#Operational Parameters
 	param_frm = ttk.Frame(m,style='TFrame')
 	param_frm.grid()
-	distance_label = ttk.Label(param_frm, text="Distance of WE from CE (mm):", style='TLabel')
+	distance_label = ttk.Label(param_frm, text="Distance Between WE and CE (mm):", style='TLabel')
 	distance_label.grid(row = 0, column = 0, sticky='w', padx=5, pady=5)
-	duration_label = ttk.Label(param_frm, text="Electrodeposition time (sec):", style='TLabel')
+	duration_label = ttk.Label(param_frm, text="Electrodeposition Time (sec):", style='TLabel')
 	duration_label.grid(row = 1, column = 0, sticky='w', padx=5, pady=5)
 	current_label = ttk.Label(param_frm, text="Set a Current (mA):", style='TLabel')
 	current_label.grid(row = 2, column = 0, sticky='w', padx=5, pady=5)
@@ -179,16 +168,21 @@ def build_param_menu():
 	set_current = tk.Button(param_frm, text='SET CURRENT', width=20, command=lambda : set_current_target(input_current)) ; #set_current.grid(row=2, column=2, padx=5, pady=5)
 	set_voltage = tk.Button(param_frm, text='SET VOLTAGE', width=20, command=lambda : set_voltage_target(input_voltage)) ; #set_voltage.grid(row=3, column=2, padx=5, pady=5)
 	
-	input_voltage.config(state="disabled")
 	voltage_label.config(state="disabled")
 	
 	
 	set_voltage.config(state="disabled")
 	input_voltage.config(state="disabled")
 
-	ttk.Label(param_frm,text="Set Current/Voltage Mode:",style='TLabel').grid(row=0,column=8, padx=40, pady=5)
-	set_mode = tk.Button(param_frm, text='Current Mode', width=20, relief='sunken') ; set_mode.grid(row=1, column=8, padx=15, pady=5)
+	ttk.Label(param_frm,text="Set Mode:",style='TLabel').grid(row=0,columnspan=2,column=8, padx=40, pady=5)
+	set_mode = tk.Button(param_frm, text='Current Mode', width=20, relief='sunken') ; #set_mode.grid(row=1, column=8, padx=15, pady=5)
 
+	set_volt = tk.Button(param_frm,text='Voltage Mode', width=10) ; set_volt.grid(row=1, column=8, padx=(15,5), pady=5, ipadx=2)
+	set_curr = tk.Button(param_frm,text='Current Mode', width=10) ; set_curr.grid(row=1, column=9, padx=5, pady=5, ipadx=2)
+
+	set_volt.config(command=lambda:set_voltage_mode(set_mode,input_current,set_current,input_voltage,set_voltage,current_label,voltage_label,set_volt,set_curr))
+	set_curr.config(command=lambda:set_current_mode(set_mode,input_current,set_current,input_voltage,set_voltage,current_label,voltage_label,set_volt,set_curr))
+	set_curr.config(bg="#b1c6eb")
 	
     #setting commmand for current mode/voltage mode button
 	set_mode.config(command=lambda : set_mode_electroplating(set_mode,input_current,set_current,input_voltage,set_voltage,current_label,voltage_label))
@@ -196,7 +190,7 @@ def build_param_menu():
 	start_btn = tk.Button(param_frm,text="▶ START ELECTOPLATING!",width=20,command=lambda : do_task(),bg="#3E9B8B",fg="white",font="Helvetica 10 bold")
 	start_btn.grid(row=11,column=8,ipadx=5)
 
-	returnbtn = tk.Button(param_frm,text="Return to\nController",width=20,command=lambda: open_controller(),bg="#7A3A30",fg="white"); returnbtn.grid(column=0,row=11,pady=15)
+	returnbtn = tk.Button(param_frm,text="Go\nBack",width=10,command=lambda: open_controller(),bg="#7A3A30",fg="white"); returnbtn.grid(column=0,row=11,pady=15)
 
 
 def open_experiment_data():
@@ -221,7 +215,7 @@ def open_experiment_data():
 	tar_vol_label.config(text=tar_vol)
 	tar_vol_label.grid(row=2, column=0, sticky='w', padx=5, pady=5)
 	
-	time_remaining_label.config(text="time left: no reading yet")
+	time_remaining_label.config(text="Time left: no reading yet")
 	time_remaining_label.grid(row=3, column=0, sticky='w', padx=5, pady=5)
 
 def do_task():
