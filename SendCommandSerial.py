@@ -419,6 +419,7 @@ def download_data():
 
 	# Copy the CSV file to the Downloads folder
 	shutil.copy(csvname, destination_path)
+	messagebox.showinfo(title="File Saved!",message=f"File downloaded to {destination_path}")
 	print(f"File downloaded to {destination_path}")
 	
 

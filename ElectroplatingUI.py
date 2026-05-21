@@ -44,20 +44,21 @@ def build_controllerUI():
 	root = m
 	root.grid_columnconfigure(list(range(0,1)),weight=1)
 	root.grid_rowconfigure(list(range(0,1)),weight=1)
+	root.wm_minsize(width=600,height=550)
 
 	control_frm = tk.Frame(root,bg="#2E3440",borderwidth=100,border=5,padx=20,pady=20)
 	control_frm.grid(column=0,row=0)
-	control_frm.grid_columnconfigure(list(range(0,12)),weight=1)
-	control_frm.grid_rowconfigure(list(range(0,12)),weight=1)
+	control_frm.grid_columnconfigure(list(range(0,12)),weight=2)
+	control_frm.grid_rowconfigure(list(range(0,12)),weight=2)
 	
-	btn_frm = tk.Frame(root,bg="#646f7a")
+	btn_frm = tk.Frame(root,bg="#646f7a",borderwidth=100,border=5,padx=20,pady=20)
 	btn_frm.grid(column=0,row=1,ipadx=150)
 	btn_frm.grid_columnconfigure(list(range(0,15)),weight=1)
 	btn_frm.grid_columnconfigure(list(range(0,15)),weight=1)
 	
 
 	# homing function
-	homing = tk.Button(control_frm, text='Home',width=5, command=lambda : head_home()) ; homing.grid(row = 3, column = 0,padx=(0,200))
+	homing = tk.Button(control_frm, text='Home',width=5, command=lambda : head_home()) ; homing.grid(row = 3, column = 0,padx=(0,100))
 
 
 	# setting increment
@@ -126,15 +127,18 @@ def build_controllerUI():
 	
 	# set_point = tk.Button(btn_frm, text='Single Point ON', width=20, relief='sunken') ; #set_point.grid(row=8, column=8, padx=5, pady=5)
 	# set_point.config(command=lambda : set_point_mode(set_point,set_point1,points_label))
-	set_params = tk.Button(btn_frm,text="Next",width=20,command=lambda:open_param_menu(),bg="#3E9B8B",fg="white",font="Helvetica 10 bold") ; set_params.grid(row=12,column=9, pady=(50,10),ipadx=10)
+	set_params = tk.Button(btn_frm,text="Next",width=20,command=lambda:open_param_menu(),bg="#3E9B8B",fg="white",font="Helvetica 10 bold") ; set_params.grid(row=12,column=9, pady=(50,0),ipadx=10,padx=(75,0))
 	undo_point = tk.Button(btn_frm,text="↩ Undo Geometric Area") ; undo_point.grid(row=11,column=8)
 	undo_point.config(command=lambda:undo_set_point(points_label,undo_point),state="disabled")
 	set_point1 = tk.Button(btn_frm, text='Set Geometric Area', width=20, command=lambda : set_a_point(points_label,undo_point))
 	set_point1.grid(row=10, column=8, padx=5, pady=5)
-
+	print(m.winfo_geometry())
+	
+	# get_win_size = tk.Button(btn_frm,text="get win dimensions",command=lambda:get_minsize(m)) ; get_win_size.grid(row=10, column=1, padx=5, pady=5)
 	# points_disp = tk.Canvas(btn_frm,height=100,width=100,bg="#646f7a").grid(row=0,column=8)
 
-	
+def get_minsize(window):
+	print(window.winfogeometry())
 
 def open_param_menu():
 	control_frm.grid_forget()
@@ -188,9 +192,9 @@ def build_param_menu():
 	set_mode.config(command=lambda : set_mode_electroplating(set_mode,input_current,set_current,input_voltage,set_voltage,current_label,voltage_label))
 	
 	start_btn = tk.Button(param_frm,text="▶ START ELECTOPLATING!",width=20,command=lambda : do_task(),bg="#3E9B8B",fg="white",font="Helvetica 10 bold")
-	start_btn.grid(row=11,column=8,ipadx=5)
+	start_btn.grid(row=11,column=8,ipadx=5,columnspan=3)
 
-	returnbtn = tk.Button(param_frm,text="Go\nBack",width=10,command=lambda: open_controller(),bg="#7A3A30",fg="white"); returnbtn.grid(column=0,row=11,pady=15)
+	returnbtn = tk.Button(param_frm,text="Go\nBack",width=10,command=lambda: open_controller(),bg="#7A3A30",fg="white"); returnbtn.grid(column=0,row=11,pady=15,sticky="w",padx=(10,0))
 
 
 def open_experiment_data():
