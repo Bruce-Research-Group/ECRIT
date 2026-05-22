@@ -3,6 +3,7 @@ from tkinter import ttk
 import json
 import serial.tools.list_ports
 import UtilUI
+import constvals
 
 #lists available ports in new window and allows user to select from given ports
 def selectport(root):
@@ -49,6 +50,7 @@ def confirmport(frm):
     }
     with open("options.json","w") as opt_file:
         json.dump(ports,opt_file,ensure_ascii=False, indent=4)
+    constvals.update_ports()
     print("destroying mainloop...")
     frm.destroy()
     print("mainloop destroyed!")

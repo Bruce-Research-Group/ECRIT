@@ -240,7 +240,7 @@ def do_task():
 		if set_voltage_target(input_voltage) != True:
 			return
 	open_experiment_data()
-	threading.Thread(target=lambda: start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label), args=()).start()
+	threading.Thread(target=lambda: start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,vol_list,time_list), args=()).start()
 	
 if __name__ == "__main__":
 	setup()

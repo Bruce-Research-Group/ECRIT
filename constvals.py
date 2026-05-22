@@ -11,9 +11,19 @@ global options,config
 with open('config.json', 'r') as f:
     config = json.load(f)
 
-# Load settings from options.json
-with open("options.json","r") as f:
-    options = json.load(f)
+try:
+    # Load settings from options.json
+    with open("options.json","r") as f:
+        options = json.load(f)
+except FileNotFoundError as e:
+    print(e)
+    print("Creating options.json file...")
+    with open("options.json","w") as f:
+        placeholder = {"arduino_port":"","printer_port":""}
+        json.dump(placeholder,f,ensure_ascii=False, indent=4)
+    with open("options.json","r") as f:
+        options = json.load(f)
+    print("Successfully Create!")
 
 
 
@@ -113,8 +123,13 @@ d = min(max_x - min_x, max_y - min_y)
 # find the angle between each points
 inc_theta = 360.0 / points
 
-arduino = serial.Serial(arduino_port, 9600)
-printer = serial.Serial(printer_port, 115200)
+global arduino,printer
+arduino = serial.Serial(baudrate=9600)
+printer = serial.Serial(baudrate=115200)
+
+
+# arduino = serial.Serial(arduino_port, 9600)
+# printer = serial.Serial(printer_port, 115200)
 
 csvdata = {
 			'Current':[],
@@ -123,3 +138,24 @@ csvdata = {
 			'Time Individual':[],
 			'Time Accumulative':[]
 		}
+
+def update_ports():
+    global arduino_port,printer_port
+    with open("options.json","r") as f:
+        options = json.load(f)
+    # Arduino serial port
+    # arduino_port = "/dev/ttyACM0"
+    arduino_port = options["arduino_port"]
+    # Printer serial port
+    # printer_port = "/dev/ttyUSB0"
+    printer_port = options["printer_port"]
+
+def open_ports():
+    arduino.port = arduino_port
+    printer.port = printer_port
+
+    arduino.open()
+    printer.open()
+
+def are_open():
+    return (arduino.is_open == True and printer.is_open==True)

@@ -7,6 +7,7 @@ import serial
 import serial.tools.list_ports
 import SelectPort
 import UtilUI
+import constvals
 
 global exit
 exit = False
@@ -18,7 +19,8 @@ except:
     with open("options.json","w") as f:
         placeholder = {"arduino_port":"","printer_port":""}
         json.dump(placeholder,f)
-    options = json.load(f)
+    with open("options.json","r") as f:
+        options = json.load(f)
 
 def startprogram():
     global root,exit
@@ -80,8 +82,8 @@ def autodetectports(root):
 
     arduino_port = options["arduino_port"]
     printer_port = options["printer_port"]
-    print(printer_port)
-    if arduino_port == "" or printer_port =="":
+    print(constvals.printer_port)
+    if constvals.arduino_port == "" or constvals.printer_port =="":
         UtilUI.tooltip("No Registered Port found. Opening port selection menu...",autoclose=True,close_time=2)
         SelectPort.selectport(root)
     # try:

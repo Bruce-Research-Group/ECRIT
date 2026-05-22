@@ -143,32 +143,36 @@ def confirmports():
 	global arduino_port,printer_port
 	global arduino,printer
 	# connections
-	try:
-		arduino = serial.Serial(arduino_port, 9600)
-		print("Serial connected to", arduino.name)
-		arduino.close()
-	except OSError:
-		UtilUI.tooltip("Could not open arduino port! Please update selected port")
-		initUI.on_quit()
-		initUI.startprogram()
-		arduino_port = options["arduino_port"]
-		printer_port = options["printer_port"]
-		arduino = serial.Serial(arduino_port, 9600)
-		print("Serial connected to", arduino.name)
+	# try:
+	# 	arduino = serial.Serial(arduino_port, 9600)
+	# 	print("Serial connected to", arduino.name)
+	# 	# arduino.close()
+	# except OSError as e:
+	# 	print(e)
+	# 	UtilUI.tooltip("Could not open arduino port! Please update selected port")
+	# 	initUI.on_quit()
+	# 	initUI.startprogram()
+	# 	arduino_port = options["arduino_port"]
+	# 	printer_port = options["printer_port"]
+	# 	arduino = serial.Serial(arduino_port, 9600)
+	# 	print("Serial connected to", arduino.name)
 		
 
-	try:
-		printer = serial.Serial(printer_port, 115200)
-		print("Printer connected to", printer.name)
-		printer.close()
-	except OSError:
-		print("Could not open printer port! Please update selected port")
-		initUI.on_quit()
-		initUI.startprogram()
-		arduino_port = options["arduino_port"]
-		printer_port = options["printer_port"]
-		printer = serial.Serial(printer_port, 9600)
-		print("Printer connected to", printer.name)
+	# try:
+	# 	printer = serial.Serial(printer_port, 115200)
+	# 	print("Printer connected to", printer.name)
+	# 	# printer.close()
+	# except OSError as e:
+	# 	print(e)
+	# 	print("Could not open printer port! Please update selected port")
+	# 	initUI.on_quit()
+	# 	initUI.startprogram()
+	# 	arduino_port = options["arduino_port"]
+	# 	printer_port = options["printer_port"]
+	# 	printer = serial.Serial(printer_port, 9600)
+	# 	print("Printer connected to", printer.name)
+	constvals.open_ports()
+
 		
 		
 	time.sleep(5)
@@ -288,7 +292,7 @@ def set_duration_time(input_duration):
 		messagebox.showerror(message="Please input proper duration value that contains no symbols or letters aside from '.' and numbers.")
 		return False
 	duration = float(input_duration.get(1.0, "end-1c"))
-	print("Duration Updated")
+	print(f"Duration Updated to {duration}")
 	return True
 
 def set_current_target(input_current):
@@ -399,7 +403,7 @@ def undo_set_point(points_label,undo_point):
 		
 
 def readSerial():
-	l = arduino.readline().decode()
+	l = constvals.arduino.readline().decode()
 	print("Arduino:", l, end="")
 
 def animate(i):
@@ -430,9 +434,10 @@ def download_data():
 	print(f"File downloaded to {destination_path}")
 	
 
-def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label):
+def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,vol_list,time_list):
 	global points_coordinates, vol, tar_vol, cur, timestamp, filename, csvname,csvdata
 	try:
+		print(f"Ports are open: {constvals.are_open()}")
 		# send reset command to arduino
 		arduino_write("r")
 		readSerial()
@@ -543,7 +548,7 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label)
 			# record the start time so we know how long it has been
 			start = time.time()
 			while time.time() - start < duration: # loop until time has reached the set duration
-				l = arduino.readline().decode().strip()
+				l = constvals.arduino.readline().decode().strip()
 				print(l)
 				f.write(l + "," + str(time.time()-start) + "\n")
 				values = l.split(',')
@@ -626,20 +631,22 @@ def get_arduino():
 
 def main():
 	#Basic Startup
+	print("starting program...")
 	initUI.startprogram()
-	print("starting program")
-	setup()
 	print("running setup...")
+	setup()
+	print("assigning configured values...")
 	assignbasic_vals()
-	print("assigning basic values")
-	print(config)
+	# print(config)
 
 	#Attempts to connect to ports and set printer to start position
-	# confirmports() 
-	print("confirming ports")
-	print(x_limit)
+	print("confirming ports...")
+	confirmports() 
+	print(f"Arduino Port is {constvals.arduino_port}\nPrinter Port is {constvals.printer_port}")
+	# print(x_limit)
 
 	#Launches Main Application Window
+	print("Launching Application...")
 	buildMainUI()
 
 if (__name__ == "__main__"):
