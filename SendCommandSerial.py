@@ -20,6 +20,9 @@ import platform
 import initUI
 import SelectPort
 import UtilUI
+import constvals
+
+global x_limit
 
 # =========
 def setup():
@@ -82,6 +85,7 @@ def assignbasic_vals():
 
 	global x_limit, y_limit, z_limit
 	x_limit = config["x_limit"]
+	# print(f"x limit is: {x_limit}")
 	y_limit = config["y_limit"]
 	z_limit = config["z_limit"]
 
@@ -142,6 +146,7 @@ def confirmports():
 	try:
 		arduino = serial.Serial(arduino_port, 9600)
 		print("Serial connected to", arduino.name)
+		arduino.close()
 	except OSError:
 		UtilUI.tooltip("Could not open arduino port! Please update selected port")
 		initUI.on_quit()
@@ -155,6 +160,7 @@ def confirmports():
 	try:
 		printer = serial.Serial(printer_port, 115200)
 		print("Printer connected to", printer.name)
+		printer.close()
 	except OSError:
 		print("Could not open printer port! Please update selected port")
 		initUI.on_quit()
@@ -170,10 +176,10 @@ def confirmports():
 # function definitions
 
 def arduino_write(command):
-	arduino.write((command + "\n").encode())
+	constvals.arduino.write((command + "\n").encode())
 
 def printer_write(command):
-	printer.write((command + "\n").encode())
+	constvals.printer.write((command + "\n").encode())
 
 def move_head(x = None, y = None, z = None):
 	global pos_x, pos_y, pos_z
@@ -592,15 +598,48 @@ def buildMainUI():
 	UtilUI.startmainUI()
 ###
 
+def get_config_val(val_name):
+	with open('config.json', 'r') as f:
+		config = json.load(f)
+	return config[val_name]
+
+def get_option_val(val_name):
+	with open('options.json', 'r') as f:
+		options = json.load(f)
+	return options[val_name]
+
+def get_printer():
+	port = get_option_val("printer_port")
+	ser = serial.Serial()
+	ser.baudrate = 19200
+	ser.port = port
+	# ser.open()
+	return ser
+
+def get_arduino():
+	port = get_option_val("arduino_port")
+	ser = serial.Serial()
+	ser.baudrate = 19200
+	ser.port = port
+	# ser.open()
+	return ser
+
 def main():
 	#Basic Startup
 	initUI.startprogram()
+	print("starting program")
 	setup()
+	print("running setup...")
 	assignbasic_vals()
+	print("assigning basic values")
+	print(config)
 
 	#Attempts to connect to ports and set printer to start position
-	#confirmports() 
-	#head_home()
+	# confirmports() 
+	print("confirming ports")
+	print(x_limit)
+	head_home()
+	print("going home")
 
 	#Launches Main Application Window
 	buildMainUI()

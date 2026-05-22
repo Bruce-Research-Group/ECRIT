@@ -1,4 +1,4 @@
 {
-    "arduino_port": "COM3",
-    "printer_port": "COM4"
+    "arduino_port": "COM6",
+    "printer_port": "COM5"
 }

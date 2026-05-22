@@ -3,6 +3,8 @@ from tkinter import ttk
 from SendCommandSerial import *
 
 def buildUI():
+	setup()
+	assignbasic_vals()
 	global m
 	m = tk.Tk()
 	m.configure(background='#2E3440')

@@ -8,7 +8,7 @@ import serial.tools.list_ports
 import SelectPort
 import UtilUI
 
-
+global exit
 exit = False
 
 try:
@@ -21,7 +21,9 @@ except:
     options = json.load(f)
 
 def startprogram():
-    global root
+    global root,exit
+    if exit:
+        pass
     exit = False
     root = Tk()
     root.config(bg="#2E3440")
@@ -48,6 +50,9 @@ def startprogram():
     # print(exit == True)
     
 def portopenerror(root):
+    global exit
+    if exit:
+        pass
     SelectPort.selectport(root)
     # print("showcasing prompt")
     exit=True
@@ -65,6 +70,7 @@ def on_quit():
     exit = True
 
 def canquit():
+    global exit
     return exit
     
 
@@ -78,33 +84,34 @@ def autodetectports(root):
     if arduino_port == "" or printer_port =="":
         UtilUI.tooltip("No Registered Port found. Opening port selection menu...",autoclose=True,close_time=2)
         SelectPort.selectport(root)
-    try:
-        s = serial.Serial(arduino_port)
-        s.close
-        arduino = True
-    except OSError:
-        pass
-        # UtilUI.tooltip("Could not open arduino port!")
+    # try:
+    #     s = serial.Serial(arduino_port)
+    #     s.close()
+    #     arduino = True
+    # except OSError:
+    #     pass
+    #     # UtilUI.tooltip("Could not open arduino port!")
         
     
-    try:
-        s = serial.Serial(printer_port)
-        s.close
-        printer = True
-    except OSError:
-        pass
-        # UtilUI.tooltip("Could not open printer port!")
+    # try:
+    #     s = serial.Serial(printer_port)
+    #     s.close()
+    #     printer = True
+    # except OSError:
+    #     pass
+    #     # UtilUI.tooltip("Could not open printer port!")
         
 
-    if not arduino or not printer:
-        if not arduino: 
-            UtilUI.tooltip("Could not open arduino port!",autoclose=True)
-        elif not printer:
-            UtilUI.tooltip("Could not open printer port!",autoclose=True)
-        else:
-            UtilUI.tooltip("Could not open either port!",autoclose=True)
-        # SelectPort.selectport(root)
-        portopenerror(root)
+    # if not arduino or not printer:
+    #     if not arduino: 
+    #         UtilUI.tooltip("Could not open arduino port!",autoclose=True)
+    #     elif not printer:
+    #         UtilUI.tooltip("Could not open printer port!",autoclose=True)
+    #     else:
+    #         UtilUI.tooltip("Could not open either port!",autoclose=True)
+    #     # SelectPort.selectport(root)
+    #     portopenerror(root)
+    destroy_startmenuroot()
 
 def destroy_startmenuroot():
     on_quit()
