@@ -42,9 +42,9 @@ def buildUI():
 def build_controllerUI():
 	global control_frm,btn_frm
 	root = m
+	root.wm_minsize(width=650,height=550)
 	root.grid_columnconfigure(list(range(0,1)),weight=1)
 	root.grid_rowconfigure(list(range(0,1)),weight=1)
-	root.wm_minsize(width=600,height=550)
 
 	control_frm = tk.Frame(root,bg="#2E3440",borderwidth=100,border=5,padx=20,pady=20)
 	control_frm.grid(column=0,row=0)
@@ -144,10 +144,13 @@ def open_param_menu():
 	control_frm.grid_forget()
 	btn_frm.grid_forget()
 	build_param_menu()
+	m.wm_minsize(width=600,height=200)
 
 def open_controller():
 	param_frm.grid_forget()
 	build_controllerUI()
+	m.wm_minsize(width=650,height=550)
+
 
 def build_param_menu():
 	global input_distance,input_duration,input_current,input_voltage,param_frm
@@ -192,9 +195,9 @@ def build_param_menu():
 	set_mode.config(command=lambda : set_mode_electroplating(set_mode,input_current,set_current,input_voltage,set_voltage,current_label,voltage_label))
 	
 	start_btn = tk.Button(param_frm,text="▶ START ELECTOPLATING!",width=20,command=lambda : do_task(),bg="#3E9B8B",fg="white",font="Helvetica 10 bold")
-	start_btn.grid(row=11,column=8,ipadx=5,columnspan=3)
+	start_btn.grid(row=11,column=8,ipadx=5,columnspan=3,pady=(15,15))
 
-	returnbtn = tk.Button(param_frm,text="Go\nBack",width=10,command=lambda: open_controller(),bg="#7A3A30",fg="white"); returnbtn.grid(column=0,row=11,pady=15,sticky="w",padx=(10,0))
+	returnbtn = tk.Button(param_frm,text="Go\nBack",width=10,command=lambda: open_controller(),bg="#7A3A30",fg="white"); returnbtn.grid(column=0,row=11,pady=(15,10),sticky="w",padx=(10,0))
 
 
 def open_experiment_data():

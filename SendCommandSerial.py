@@ -385,6 +385,7 @@ def undo_set_point(points_label,undo_point):
 		print("No points to remove.")
 		return
 	print(f"point: {points_coordinates.pop()} removed!")
+	points_label.config(text=f'{len(points_coordinates)} points set')
 	if len(points_coordinates) == 0:
 		points_label.config(text="0")
 		undo_point.config(state="disabled")
