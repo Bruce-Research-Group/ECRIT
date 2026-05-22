@@ -115,3 +115,11 @@ inc_theta = 360.0 / points
 
 arduino = serial.Serial(arduino_port, 9600)
 printer = serial.Serial(printer_port, 115200)
+
+csvdata = {
+			'Current':[],
+			'Target Voltage':[],
+			'Actual Voltage':[],
+			'Time Individual':[],
+			'Time Accumulative':[]
+		}

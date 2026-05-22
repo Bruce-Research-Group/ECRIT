@@ -512,11 +512,11 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label)
 			i+=1
 
 			# csv space
-			csvdata['Current'].append("")
-			csvdata['Target Voltage'].append("")
-			csvdata['Actual Voltage'].append("")
-			csvdata['Time Individual'].append("")
-			csvdata['Time Accumulative'].append("")
+			constvals.csvdata['Current'].append("")
+			constvals.csvdata['Target Voltage'].append("")
+			constvals.csvdata['Actual Voltage'].append("")
+			constvals.csvdata['Time Individual'].append("")
+			constvals.csvdata['Time Accumulative'].append("")
 
 			# log the point
 			point_str = "x: " + "{:.3f}".format(x) + ", y: " + "{:.3f}".format(y)
@@ -550,11 +550,11 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label)
 				cur = values[0]
 				tar_vol = values[1]
 				vol = values[2]
-				csvdata['Current'].append(float(cur))
-				csvdata['Target Voltage'].append(float(tar_vol))
-				csvdata['Actual Voltage'].append(float(vol))
-				csvdata['Time Individual'].append(float(time.time()-start))
-				csvdata['Time Accumulative'].append(float(time.time()-start)+ i*duration)
+				constvals.csvdata['Current'].append(float(cur))
+				constvals.csvdata['Target Voltage'].append(float(tar_vol))
+				constvals.csvdata['Actual Voltage'].append(float(vol))
+				constvals.csvdata['Time Individual'].append(float(time.time()-start))
+				constvals.csvdata['Time Accumulative'].append(float(time.time()-start)+ i*duration)
 				cur_label.config(text=f'current: {cur}')
 				vol_label.config(text=f'voltage: {vol}')
 				tar_vol_label.config(text=f'target voltage: {tar_vol}')
@@ -584,7 +584,7 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label)
 		move_head(z=travel_z)
 
 	finally:
-		df = pd.DataFrame(csvdata)
+		df = pd.DataFrame(constvals.csvdata)
 		df.to_csv(csvname, index=False)
 		arduino_write("f")
 		show_state("Done")
@@ -638,8 +638,6 @@ def main():
 	# confirmports() 
 	print("confirming ports")
 	print(x_limit)
-	head_home()
-	print("going home")
 
 	#Launches Main Application Window
 	buildMainUI()
