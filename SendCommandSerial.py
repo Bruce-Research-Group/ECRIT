@@ -552,6 +552,9 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 				print(l)
 				f.write(l + "," + str(time.time()-start) + "\n")
 				values = l.split(',')
+				# print(f"values: {values}\nl: {l}")
+				if len(values) <3:
+					continue
 				cur = values[0]
 				tar_vol = values[1]
 				vol = values[2]
@@ -597,6 +600,9 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 		#arduino.close()
 		#printer.close()
 		f.close()
+
+def halt_experiment():
+	arduino_write("f")
 
 # gui
 def buildMainUI():

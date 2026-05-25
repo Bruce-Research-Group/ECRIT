@@ -1,5 +1,6 @@
 import json 
 import serial
+import serial.tools.list_ports
 
 
 ports = serial.tools.list_ports.comports()
@@ -154,8 +155,12 @@ def open_ports():
     arduino.port = arduino_port
     printer.port = printer_port
 
-    arduino.open()
-    printer.open()
+    try:
+        arduino.open()
+        printer.open()
+    except:
+        print("Could not open port.")
+        quit
 
 def are_open():
     return (arduino.is_open == True and printer.is_open==True)

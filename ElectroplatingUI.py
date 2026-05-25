@@ -211,6 +211,7 @@ def open_experiment_data():
 	vol_label = tk.Label(frm)
 	tar_vol_label = tk.Label(frm)
 	time_remaining_label = tk.Label(frm)
+	cancel = tk.Button(frm)
 	#value display	
 	# frm.lift(param_frm)
 	frm.grid()
@@ -226,6 +227,9 @@ def open_experiment_data():
 	
 	time_remaining_label.config(text="Time left: no reading yet")
 	time_remaining_label.grid(row=3, column=0, sticky='w', padx=5, pady=5)
+
+	cancel.config(text="Cancel Experiment",bg="#bc5c5c",command=lambda:halt_experiment())
+	cancel.grid(row=4,column=0,padx=5,pady=5)
 
 def do_task():
 	if set_distance_position(input_distance) !=True:
