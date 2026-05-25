@@ -120,7 +120,7 @@ def build_controllerUI():
 	# back.config(image=down_arrow)
 	x_label = ttk.Label(control_frm, text="y-axis", style='TLabel')
 	x_label.grid(row = 7, column = 4, padx=5, pady=5)
-	set_center = tk.Button(control_frm, text='⦿', width=2, command=lambda : set_center_position()) ; set_center.grid(row=5, column=4, padx=5, pady=5)
+	set_center = tk.Button(control_frm, text='⦿', width=2, command=lambda : set_center_position()) #; set_center.grid(row=5, column=4, padx=5, pady=5)
 	move_to_center = tk.Button(control_frm, text='⦿', width=2, command=lambda : move_head_center()) #; move_to_center.grid(row=5, column=4, padx=5, pady=5)
 	set_target_z = tk.Button(btn_frm, text='Set Baseline Height', width=20, command=lambda : set_target_z_position()) ; set_target_z.grid(row=10, column=1, padx=5, pady=5)
 	move_to_target_z = tk.Button(control_frm, text='Move To Surface Z', width=20, command=lambda : move_head(z=tar_z)) #; move_to_target_z.grid(row=11, column=1, padx=5, pady=5)
@@ -231,6 +231,11 @@ def open_experiment_data():
 	cancel.config(text="Cancel Experiment",bg="#bc5c5c",command=lambda:halt_experiment())
 	cancel.grid(row=4,column=0,padx=20,pady=5)
 
+	return top
+
+def close_exp_data():
+	top.destroy()
+
 def do_task():
 	if set_distance_position(input_distance) !=True:
 		return
@@ -243,8 +248,8 @@ def do_task():
 	else:
 		if set_voltage_target(input_voltage) != True:
 			return
-	open_experiment_data()
-	threading.Thread(target=lambda: start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,vol_list,time_list), args=()).start()
+	frm_top = open_experiment_data()
+	threading.Thread(target=lambda: start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,vol_list,time_list,frm_top), args=()).start()
 	
 if __name__ == "__main__":
 	setup()

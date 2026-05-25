@@ -434,7 +434,7 @@ def download_data():
 	print(f"File downloaded to {destination_path}")
 	
 
-def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,vol_list,time_list):
+def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,vol_list,time_list,top):
 	global points_coordinates, vol, tar_vol, cur, timestamp, filename, csvname,csvdata
 	try:
 		print(f"Ports are open: {constvals.are_open()}")
@@ -474,10 +474,10 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 		show_state("To travel height")
 		time.sleep(40)
 
-		# move the head to the center of the circle
-		move_head(x=constvals.cen_x, y=constvals.cen_y)
-		show_state("Centering")
-		time.sleep(5)
+		# # move the head to the center of the circle
+		# move_head(x=constvals.cen_x, y=constvals.cen_y)
+		# show_state("Centering")
+		# time.sleep(5)
 
 		# move the head to the right height
 		move_head(z=min_z+2)
@@ -485,8 +485,8 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 		time.sleep(30)
 
 
-		if single_point:
-			points_coordinates = [(cen_x, cen_y)]
+		# if single_point:
+		# 	points_coordinates = [(cen_x, cen_y)]
 		# else:
 		# 	# polar coord
 		# 	r = inc_r
@@ -580,6 +580,7 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 			# move the head up
 			move_head(z=min_z+2)
 			time.sleep(10)
+		
 
 		# We are done with the loop
 		move_head(z=travel_z)
@@ -597,6 +598,8 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 		arduino_write("f")
 		show_state("Done")
 		download_data()
+		points_coordinates.clear()
+		top.destroy()
 		#arduino.close()
 		#printer.close()
 		f.close()
