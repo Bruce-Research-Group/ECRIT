@@ -267,8 +267,8 @@ def move_z(amount):
 
 def set_center_position():
 	global pos_x, pos_y, cen_x, cen_y
-	cen_x = pos_x
-	cen_y = pos_y
+	constvals.cen_x = pos_x
+	constvals.cen_y = pos_y
 
 def set_target_z_position():
 	global pos_z, tar_z
@@ -475,7 +475,7 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 		time.sleep(40)
 
 		# move the head to the center of the circle
-		move_head(x=cen_x, y=cen_y)
+		move_head(x=constvals.cen_x, y=constvals.cen_y)
 		show_state("Centering")
 		time.sleep(5)
 
