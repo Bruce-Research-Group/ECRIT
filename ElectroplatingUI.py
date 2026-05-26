@@ -3,8 +3,8 @@ from tkinter import ttk
 from SendCommandSerial import *
 
 def buildUI():
-	setup()
-	assignbasic_vals()
+	# setup()
+	# assignbasic_vals()
 	global m
 	m = tk.Tk()
 	m.configure(background='#2E3440')
@@ -122,9 +122,13 @@ def build_controllerUI():
 	x_label.grid(row = 7, column = 4, padx=5, pady=5)
 	set_center = tk.Button(control_frm, text='⦿', width=2, command=lambda : set_center_position()) #; set_center.grid(row=5, column=4, padx=5, pady=5)
 	move_to_center = tk.Button(control_frm, text='⦿', width=2, command=lambda : move_head_center()) #; move_to_center.grid(row=5, column=4, padx=5, pady=5)
-	set_target_z = tk.Button(btn_frm, text='Set Baseline Height', width=20, command=lambda : set_target_z_position()) ; set_target_z.grid(row=10, column=1, padx=5, pady=5)
+	set_target_z = tk.Button(btn_frm, text='Set Baseline Height', width=20) ; set_target_z.grid(row=10, column=1, padx=5, pady=5)
 	move_to_target_z = tk.Button(control_frm, text='Move To Surface Z', width=20, command=lambda : move_head(z=tar_z)) #; move_to_target_z.grid(row=11, column=1, padx=5, pady=5)
 	points_label = tk.Label(btn_frm, text="0",fg="white",font="Helvetica",bg="#646f7a")
+	if len(get_points_coords()) == 0:
+		points_label.config(text="0")
+	else:
+		points_label.config(text=f"{len(get_points_coords())} points set")
 	points_label.grid(row = 9, column = 8, padx=5, pady=15)
 	
 	# set_point = tk.Button(btn_frm, text='Single Point ON', width=20, relief='sunken') ; #set_point.grid(row=8, column=8, padx=5, pady=5)
@@ -133,8 +137,10 @@ def build_controllerUI():
 	undo_point = tk.Button(btn_frm,text="↩ Undo Geometric Area") ; undo_point.grid(row=11,column=8)
 	undo_point.config(command=lambda:undo_set_point(points_label,undo_point),state="disabled")
 	set_point1 = tk.Button(btn_frm, text='Set Geometric Area', width=20, command=lambda : set_a_point(points_label,undo_point))
+	set_point1.config(fg="#959393")
 	set_point1.grid(row=10, column=8, padx=5, pady=5)
-	print(m.winfo_geometry())
+	set_target_z.config(command=lambda : set_baseline(set_point1))
+	# print(m.winfo_geometry())
 	
 	# get_win_size = tk.Button(btn_frm,text="get win dimensions",command=lambda:get_minsize(m)) ; get_win_size.grid(row=10, column=1, padx=5, pady=5)
 	# points_disp = tk.Canvas(btn_frm,height=100,width=100,bg="#646f7a").grid(row=0,column=8)
@@ -142,11 +148,18 @@ def build_controllerUI():
 def get_minsize(window):
 	print(window.winfogeometry())
 
+def set_baseline(set_point1):
+	set_point1.config(fg="black")
+	set_target_z_position()
+
 def open_param_menu():
-	control_frm.grid_forget()
-	btn_frm.grid_forget()
-	build_param_menu()
-	m.wm_minsize(width=600,height=200)
+	if len(get_points_coords()) != 0:
+		control_frm.grid_forget()
+		btn_frm.grid_forget()
+		build_param_menu()
+		m.wm_minsize(width=600,height=200)
+	else:
+		messagebox.showwarning(title="Wait!",message="Cannot Set Parameters Without Setting ALL Geometric Areas!")
 
 def open_controller():
 	param_frm.grid_forget()
@@ -249,7 +262,7 @@ def do_task():
 		if set_voltage_target(input_voltage) != True:
 			return
 	frm_top = open_experiment_data()
-	threading.Thread(target=lambda: start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,vol_list,time_list,frm_top), args=()).start()
+	threading.Thread(target=lambda: start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,vol_list,time_list,frm_top,m), args=()).start()
 	
 if __name__ == "__main__":
 	setup()

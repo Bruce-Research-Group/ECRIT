@@ -186,23 +186,23 @@ def printer_write(command):
 	constvals.printer.write((command + "\n").encode())
 
 def move_head(x = None, y = None, z = None):
-	global pos_x, pos_y, pos_z
+	# global pos_x, pos_y, pos_z
 	command = "G1"
 	if x is not None:
 		command += " X" + str(x)
-		pos_x = x
+		constvals.pos_x = x
 	if y is not None:
 		command += " Y" + str(y)
-		pos_y = y
+		constvals.pos_y = y
 	if z is not None:
 		command += " Z" + str(z)
-		pos_z = z
+		constvals.pos_z = z
 	printer_write(command)
 
 def move_head_center():
 	move_confirm = messagebox.askokcancel(message="Move printer head to center?")
 	if move_confirm:
-		move_head(x=cen_x, y=cen_y)
+		move_head(x=constvals.cen_x, y=constvals.cen_y)
 	# tk.Message(text="Move printer head to center?",)
 
 def show_state(state):
@@ -244,102 +244,102 @@ def play_sound():
 		printer_write(command)
 
 def head_home():
-	global pos_x, pos_y, pos_z
-	pos_x=0
-	pos_y=0
-	pos_z=0
+	# global pos_x, pos_y, pos_z
+	constvals.pos_x=0
+	constvals.pos_y=0
+	constvals.pos_z=0
 	printer_write("G28")
 
 def move_x(amount):
-	global pos_x
-	pos_x = min(x_limit, max(0, pos_x + amount))
-	move_head(x=pos_x)
+	# global pos_x
+	constvals.pos_x = min(constvals.x_limit, max(0, constvals.pos_x + amount))
+	move_head(x=constvals.pos_x)
 
 def move_y(amount):
-	global pos_y
-	pos_y = min(y_limit, max(0, pos_y + amount))
-	move_head(y=pos_y)
+	# global pos_y
+	constvals.pos_y = min(constvals.y_limit, max(0, constvals.pos_y + amount))
+	move_head(y=constvals.pos_y)
 
 def move_z(amount):
-	global pos_z
-	pos_z = min(z_limit, max(0, pos_z + amount))
-	move_head(z=pos_z)
+	# global pos_z
+	constvals.pos_z = min(constvals.z_limit, max(0, constvals.pos_z + amount))
+	move_head(z=constvals.pos_z)
 
 def set_center_position():
-	global pos_x, pos_y, cen_x, cen_y
-	constvals.cen_x = pos_x
-	constvals.cen_y = pos_y
+	# global pos_x, pos_y, cen_x, cen_y
+	constvals.cen_x = constvals.pos_x
+	constvals.cen_y = constvals.pos_y
 
 def set_target_z_position():
-	global pos_z, tar_z
-	tar_z = pos_z
+	# global pos_z, tar_z
+	constvals.tar_z = constvals.pos_z
 	print("target z set")
 
 def set_distance_position(input_distance):
-	global diff_z, tar_z, min_z
+	# global diff_z, tar_z, min_z
 	# print(repr(input_distance.get("1.0","end-1c")))
 	if input_distance.get("1.0","end-1c") == "":
 		messagebox.showerror(message="Please input proper distance value that contains no symbols or letters aside from '.' and numbers.")
 		return False
-	diff_z = float(input_distance.get(1.0, "end-1c"))
-	min_z = tar_z + diff_z
+	constvals.diff_z = float(input_distance.get(1.0, "end-1c"))
+	constvals.min_z = constvals.tar_z + constvals.diff_z
 	print("Distance Updated")
 	return True
 	
 def set_duration_time(input_duration):
-	global duration
+	# global duration
 	if input_duration.get("1.0","end-1c") == "":
 		messagebox.showerror(message="Please input proper duration value that contains no symbols or letters aside from '.' and numbers.")
 		return False
-	duration = float(input_duration.get(1.0, "end-1c"))
-	print(f"Duration Updated to {duration}")
+	constvals.duration = float(input_duration.get(1.0, "end-1c"))
+	print(f"Duration Updated to {constvals.duration}")
 	return True
 
 def set_current_target(input_current):
-	global target_current
+	# global target_current
 	if input_current.get("1.0","end-1c") == "":
 		messagebox.showerror(message="Please input proper current value that contains no symbols or letters aside from '.' and numbers.")
 		return False
-	target_current = float(input_current.get(1.0, "end-1c")) # Need to figure out how to update this live during electroplating
+	constvals.target_current = float(input_current.get(1.0, "end-1c")) # Need to figure out how to update this live during electroplating
 	# arduino_write("c " + str(target_current))
 	# readSerial()
-	print("Current Updated to", target_current)
+	print("Current Updated to", constvals.target_current)
 	return True
 
 def get_current_mode():
-	return current_mode
+	return constvals.current_mode
 
 def set_current_mode_val(val):
-	global current_mode
-	current_mode = val
+	# global current_mode
+	constvals.current_mode = val
 
 def set_voltage_target(input_voltage):
-	global target_voltage
+	# global target_voltage
 	if input_voltage.get("1.0","end-1c") == "":
 		messagebox.showerror(message="Please input proper voltage value that contains no symbols or letters aside from '.' and numbers.")
 		return False
-	target_voltage = float(input_voltage.get(1.0, "end-1c")) # Need to figure out how to update this live during electroplating
+	constvals.target_voltage = float(input_voltage.get(1.0, "end-1c")) # Need to figure out how to update this live during electroplating
 	# arduino_write("c " + str(target_current))
 	# readSerial()
-	print("Voltage Updated to", target_voltage)
+	print("Voltage Updated to", constvals.target_voltage)
 	return True
 
 def set_point_mode(set_point,set_point1,points_label):
-	global single_point, points_coordinates
-	if single_point:
+	# global single_point
+	if constvals.single_point:
 		set_point.config(text="Single Point OFF", relief="raised")
 		set_point1.grid(row=10, column=8, padx=5, pady=5)
-		points_label.config(text=f'{len(points_coordinates)} points set')
+		points_label.config(text=f'{len(constvals.points_coordinates)} points set')
 	else:
 		set_point.config(text="Single Point ON", relief="sunken")
 		set_point1.grid_forget()
 		points_label.config(text="Using Center point")
-		points_coordinates = []
-	single_point = not single_point
+		constvals.points_coordinates = []
+	constvals.single_point = not constvals.single_point
 
 def set_mode_electroplating(set_mode,input_current,set_current,input_voltage,set_voltage,current_label,voltage_label):
-	global current_mode
-	if current_mode:
+	# global current_mode
+	if constvals.current_mode:
 		set_mode.config(text="Voltage Mode", relief="raised")
 
 		input_current.delete('1.0', "end")
@@ -364,7 +364,7 @@ def set_mode_electroplating(set_mode,input_current,set_current,input_voltage,set
 		input_current.config(state="normal")
 		set_current.config(state="normal")
 		current_label.config(state="normal")
-	current_mode = not current_mode
+	constvals.current_mode = not constvals.current_mode
 
 def set_current_mode(set_mode,input_current,set_current,input_voltage,set_voltage,current_label,voltage_label,set_volt,set_curr):
 	set_current_mode_val(False)
@@ -381,22 +381,22 @@ def set_voltage_mode(set_mode,input_current,set_current,input_voltage,set_voltag
 
 
 def set_a_point(points_label,undo_point):
-	global points_coordinates, pos_x, pos_y
-	if (pos_x,pos_y) not in points_coordinates:
+	# global pos_x, pos_y
+	if (constvals.pos_x,constvals.pos_y) not in constvals.points_coordinates:
 		undo_point.config(state="normal")
-		points_coordinates.append((pos_x, pos_y))
-		points_label.config(text=f'{len(points_coordinates)} points set')
-		print("point set at", pos_x, pos_y)
+		constvals.points_coordinates.append((constvals.pos_x, constvals.pos_y))
+		points_label.config(text=f'{len(constvals.points_coordinates)} points set')
+		print("point set at", constvals.pos_x, constvals.pos_y)
 	else:
-		print(f"A point is already set at ({pos_x},{pos_y})")
+		print(f"A point is already set at ({constvals.pos_x},{constvals.pos_y})")
 
 def undo_set_point(points_label,undo_point):
-	if len(points_coordinates) == 0:
+	if len(constvals.points_coordinates) == 0:
 		print("No points to remove.")
 		return
-	print(f"point: {points_coordinates.pop()} removed!")
-	points_label.config(text=f'{len(points_coordinates)} points set')
-	if len(points_coordinates) == 0:
+	print(f"point: {constvals.points_coordinates.pop()} removed!")
+	points_label.config(text=f'{len(constvals.points_coordinates)} points set')
+	if len(constvals.points_coordinates) == 0:
 		points_label.config(text="0")
 		undo_point.config(state="disabled")
 
@@ -411,6 +411,9 @@ def animate(i):
 	ax1.clear()
 	ax1.plot(vol_list, time_list)
 
+def get_points_coords():
+	return constvals.points_coordinates
+
 # def do_task():
 
 # 	threading.Thread(target=start_electroplating, args=()).start()
@@ -418,7 +421,7 @@ def animate(i):
 
 
 def download_data():
-	global csvname
+	# global csvname
 	# Determine the default download folder based on the operating system
 	if platform.system() == 'Windows':
 			download_folder = os.path.join(os.environ['USERPROFILE'], 'Downloads')
@@ -426,16 +429,16 @@ def download_data():
 			download_folder = os.path.join(os.environ['HOME'], 'Downloads')
 
 	# Define the full path to save the file in the Downloads folder
-	destination_path = os.path.join(download_folder, os.path.basename(csvname))
+	destination_path = os.path.join(download_folder, os.path.basename(constvals.csvname))
 
 	# Copy the CSV file to the Downloads folder
-	shutil.copy(csvname, destination_path)
+	shutil.copy(constvals.csvname, destination_path)
 	messagebox.showinfo(title="File Saved!",message=f"File downloaded to {destination_path}")
 	print(f"File downloaded to {destination_path}")
 	
 
-def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,vol_list,time_list,top):
-	global points_coordinates, vol, tar_vol, cur, timestamp, filename, csvname,csvdata
+def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,vol_list,time_list,top,root):
+	# global vol, tar_vol, cur, timestamp, filename, csvname,csvdata
 	try:
 		print(f"Ports are open: {constvals.are_open()}")
 		# send reset command to arduino
@@ -454,23 +457,23 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 			'Time Accumulative':[]
 		}
 		
-		timestamp = time.strftime("%Y%m%d-%H%M%S")
-		filename = "log_" + timestamp + ".txt"
-		csvname = "log_" + timestamp + ".csv"
-		f = open(filename, "w")
+		constvals.timestamp = time.strftime("%Y%m%d-%H%M%S")
+		constvals.filename = "log_" + constvals.timestamp + ".txt"
+		constvals.csvname = "log_" + constvals.timestamp + ".csv"
+		f = open(constvals.filename, "w")
 		f.write("Staring Time " + str(time.time()) + "\n")
 		# log settings
-		f.write("current_mode " + str(current_mode) + "\n")
-		f.write("target_current " + str(target_current) + "\n")
-		f.write("target_voltage " + str(target_voltage) + "\n")
-		f.write("duration " + str(duration) + "s\n")
-		f.write("diff_z " + str(diff_z) + "mm\n")
-		f.write("points " + str(len(points_coordinates)) + "\n")
-		f.write("inc_r " + str(inc_r) + "mm\n")
+		f.write("current_mode " + str(constvals.current_mode) + "\n")
+		f.write("target_current " + str(constvals.target_current) + "\n")
+		f.write("target_voltage " + str(constvals.target_voltage) + "\n")
+		f.write("duration " + str(constvals.duration) + "s\n")
+		f.write("diff_z " + str(constvals.diff_z) + "mm\n")
+		f.write("points " + str(len(constvals.points_coordinates)) + "\n")
+		f.write("inc_r " + str(constvals.inc_r) + "mm\n")
 		f.write("====================================\n")
 
 		# move the head to the travel height
-		move_head(z=travel_z)
+		move_head(z=constvals.travel_z)
 		show_state("To travel height")
 		time.sleep(40)
 
@@ -480,7 +483,7 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 		# time.sleep(5)
 
 		# move the head to the right height
-		move_head(z=min_z+2)
+		move_head(z=constvals.min_z+2)
 		show_state("To starting height")
 		time.sleep(30)
 
@@ -513,7 +516,7 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 
 		i=-1
 		# start the loop
-		for (x, y) in points_coordinates:
+		for (x, y) in constvals.points_coordinates:
 			i+=1
 
 			# csv space
@@ -533,21 +536,21 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 			time.sleep(10)
 
 			# move the head down
-			move_head(z=min_z)
+			move_head(z=constvals.min_z)
 			time.sleep(20)
 
 			# signal the arduino to start electroplating
-			if current_mode:
-				arduino_write("c " + str(target_current))
+			if constvals.current_mode:
+				arduino_write("c " + str(constvals.target_current))
 				readSerial()
 			else:
-				arduino_write("v " + str(target_voltage))
+				arduino_write("v " + str(constvals.target_voltage))
 				readSerial()
 			print("on")
 
 			# record the start time so we know how long it has been
 			start = time.time()
-			while time.time() - start < duration: # loop until time has reached the set duration
+			while time.time() - start < constvals.duration: # loop until time has reached the set duration
 				l = constvals.arduino.readline().decode().strip()
 				print(l)
 				f.write(l + "," + str(time.time()-start) + "\n")
@@ -562,13 +565,13 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 				constvals.csvdata['Target Voltage'].append(float(tar_vol))
 				constvals.csvdata['Actual Voltage'].append(float(vol))
 				constvals.csvdata['Time Individual'].append(float(time.time()-start))
-				constvals.csvdata['Time Accumulative'].append(float(time.time()-start)+ i*duration)
+				constvals.csvdata['Time Accumulative'].append(float(time.time()-start)+ i*constvals.duration)
 				cur_label.config(text=f'current: {cur}')
 				vol_label.config(text=f'voltage: {vol}')
 				tar_vol_label.config(text=f'target voltage: {tar_vol}')
 				vol_list.append(float(vol))
 				time_list.append(float(time.time()-start))
-				time_remaining_label.config(text=f"time left: {int(duration+start-time.time())}")
+				time_remaining_label.config(text=f"time left: {int(constvals.duration+start-time.time())}")
 
 			# signal the arduino to stop electroplating
 			arduino_write("f")
@@ -578,31 +581,37 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 			time.sleep(0.5)
 
 			# move the head up
-			move_head(z=min_z+2)
+			move_head(z=constvals.min_z+2)
 			time.sleep(10)
 		
 
 		# We are done with the loop
-		move_head(z=travel_z)
+		move_head(z=constvals.travel_z)
 		# play_sound()
 
 	# if Ctrl-C detected quit gracefully
 	except KeyboardInterrupt:
 		print("Ctrl-C detected, quitting")
 		# Stop the electroplating and move the head to travel height
-		move_head(z=travel_z)
+		move_head(z=constvals.travel_z)
 
 	finally:
 		df = pd.DataFrame(constvals.csvdata)
-		df.to_csv(csvname, index=False)
+		df.to_csv(constvals.csvname, index=False)
 		arduino_write("f")
 		show_state("Done")
 		download_data()
-		points_coordinates.clear()
+		# constvals.points_coordinates.clear()
 		top.destroy()
 		#arduino.close()
 		#printer.close()
 		f.close()
+		# print("Experiment complete!")
+		# constvals.new_exp = messagebox.askyesno(title="New Experiment?",message="Start New Experiment?")
+		# print("destroying...")
+		# root.destroy()
+		# root.quit()
+		# print("destroyed!")
 
 def halt_experiment():
 	arduino_write("f")
@@ -654,6 +663,8 @@ def main():
 	print(f"Arduino Port is {constvals.arduino_port}\nPrinter Port is {constvals.printer_port}")
 	# print(x_limit)
 
+	# while constvals.new_exp:
+	# 	constvals.new_exp = False
 	#Launches Main Application Window
 	print("Launching Application...")
 	buildMainUI()

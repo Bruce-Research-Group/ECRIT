@@ -30,21 +30,23 @@ def startprogram():
     root = Tk()
     root.config(bg="#2E3440")
     root.title("Electrochemistry Experiment Setup")
+    root.grid_columnconfigure(0,weight=1)
+    root.grid_rowconfigure(0,weight=1)
 
     frm = Frame(root, bg="#2E3440")
-    frm.grid(padx=50,pady=50)
+    frm.grid(row=0,column=0,padx=50,pady=50)
     frm.grid_rowconfigure(list(range(0,10)),weight=1)
     frm.grid_columnconfigure(list(range(0,10)),weight=1)
 
     #Start Program Buttons
     startbtn = Button(frm,text="Start",command=lambda: autodetectports(root),width=20)
-    startbtn.grid(column=0,row=0,pady=50)
+    startbtn.grid(column=0,row=0,pady=50,padx=(75,40))
 
     portsbtn = Button(frm,text="Configure\nPorts",command=lambda: SelectPort.selectport(root))
-    portsbtn.grid(column=4,row=4,ipady=10,padx=20)
+    portsbtn.grid(column=4,row=4,ipady=10,padx=50)
 
     quitbtn = Button(frm,text="Quit",command=on_quit,width=15)
-    quitbtn.grid(column=0,row=1,padx=40,pady=40)
+    quitbtn.grid(column=0,row=1,padx=(75,40),pady=(20,50))
     
     root.mainloop()
     exit=True

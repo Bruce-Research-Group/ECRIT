@@ -26,8 +26,8 @@ except FileNotFoundError as e:
         options = json.load(f)
     print("Successfully Create!")
 
-
-
+global new_exp
+new_exp = True
 
 
 global arduino_port,printer_port
