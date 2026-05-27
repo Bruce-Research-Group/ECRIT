@@ -39,7 +39,7 @@ def startprogram():
     frm.grid_columnconfigure(list(range(0,10)),weight=1)
 
     #Start Program Buttons
-    startbtn = Button(frm,text="Start",command=lambda: autodetectports(root),width=20)
+    startbtn = Button(frm,text="Start",command=lambda: autodetectports(root),width=20,bg="#3E9B8B",fg="white")
     startbtn.grid(column=0,row=0,pady=50,padx=(75,40))
 
     portsbtn = Button(frm,text="Configure\nPorts",command=lambda: SelectPort.selectport(root))

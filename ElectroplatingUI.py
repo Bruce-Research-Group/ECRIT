@@ -125,10 +125,7 @@ def build_controllerUI():
 	set_target_z = tk.Button(btn_frm, text='Set Baseline Height', width=20) ; set_target_z.grid(row=10, column=1, padx=5, pady=5)
 	move_to_target_z = tk.Button(control_frm, text='Move To Surface Z', width=20, command=lambda : move_head(z=tar_z)) #; move_to_target_z.grid(row=11, column=1, padx=5, pady=5)
 	points_label = tk.Label(btn_frm, text="0",fg="white",font="Helvetica",bg="#646f7a")
-	if len(get_points_coords()) == 0:
-		points_label.config(text="0")
-	else:
-		points_label.config(text=f"{len(get_points_coords())} points set")
+	
 	points_label.grid(row = 9, column = 8, padx=5, pady=15)
 	
 	# set_point = tk.Button(btn_frm, text='Single Point ON', width=20, relief='sunken') ; #set_point.grid(row=8, column=8, padx=5, pady=5)
@@ -140,6 +137,13 @@ def build_controllerUI():
 	set_point1.config(fg="#959393")
 	set_point1.grid(row=10, column=8, padx=5, pady=5)
 	set_target_z.config(command=lambda : set_baseline(set_point1))
+	if len(get_points_coords()) == 0:
+		points_label.config(text="0")
+		
+	else:
+		set_point1.config(fg="black")
+		undo_point.config(state="normal")
+		points_label.config(text=f"{len(get_points_coords())} points set")
 	# print(m.winfo_geometry())
 	
 	# get_win_size = tk.Button(btn_frm,text="get win dimensions",command=lambda:get_minsize(m)) ; get_win_size.grid(row=10, column=1, padx=5, pady=5)
@@ -173,6 +177,7 @@ def build_param_menu():
 	#Operational Parameters
 	param_frm = ttk.Frame(m,style='TFrame')
 	param_frm.grid()
+
 	distance_label = ttk.Label(param_frm, text="Distance Between WE and CE (mm):", style='TLabel')
 	distance_label.grid(row = 0, column = 0, sticky='w', padx=5, pady=5)
 	duration_label = ttk.Label(param_frm, text="Electrodeposition Time (sec):", style='TLabel')
@@ -213,6 +218,8 @@ def build_param_menu():
 	start_btn.grid(row=11,column=8,ipadx=5,columnspan=3,pady=(15,15))
 
 	returnbtn = tk.Button(param_frm,text="Go\nBack",width=10,command=lambda: open_controller(),bg="#7A3A30",fg="white"); returnbtn.grid(column=0,row=11,pady=(15,10),sticky="w",padx=(10,0))
+	for c in param_frm.winfo_children():
+		print(f"{c}: {c.grid_info()}")
 
 
 def open_experiment_data():
@@ -262,7 +269,7 @@ def do_task():
 		if set_voltage_target(input_voltage) != True:
 			return
 	frm_top = open_experiment_data()
-	threading.Thread(target=lambda: start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,vol_list,time_list,frm_top,m), args=()).start()
+	threading.Thread(target=lambda: start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,vol_list,time_list,frm_top,m,param_frm), args=()).start()
 	
 if __name__ == "__main__":
 	setup()

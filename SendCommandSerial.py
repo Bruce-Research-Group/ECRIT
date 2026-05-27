@@ -437,9 +437,13 @@ def download_data():
 	print(f"File downloaded to {destination_path}")
 	
 
-def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,vol_list,time_list,top,root):
+def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,vol_list,time_list,top,root,param_frm):
 	# global vol, tar_vol, cur, timestamp, filename, csvname,csvdata
+	# for w in param_frm.winfo_children():
+	# 		w.configure(state="disabled")
 	try:
+		
+
 		print(f"Ports are open: {constvals.are_open()}")
 		# send reset command to arduino
 		arduino_write("r")
@@ -606,6 +610,10 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 		#arduino.close()
 		#printer.close()
 		f.close()
+		# for w in param_frm.winfo_children():
+		# 	w.configure(state="normal")
+		# if constvals.current_mode:
+
 		# print("Experiment complete!")
 		# constvals.new_exp = messagebox.askyesno(title="New Experiment?",message="Start New Experiment?")
 		# print("destroying...")
