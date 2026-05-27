@@ -218,8 +218,8 @@ def build_param_menu():
 	start_btn.grid(row=11,column=8,ipadx=5,columnspan=3,pady=(15,15))
 
 	returnbtn = tk.Button(param_frm,text="Go\nBack",width=10,command=lambda: open_controller(),bg="#7A3A30",fg="white"); returnbtn.grid(column=0,row=11,pady=(15,10),sticky="w",padx=(10,0))
-	for c in param_frm.winfo_children():
-		print(f"{c}: {c.grid_info()}")
+	# for c in param_frm.winfo_children():
+	# 	print(f"{c}: {c.grid_info()}")
 
 
 def open_experiment_data():
