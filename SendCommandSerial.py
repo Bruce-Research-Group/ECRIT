@@ -1,4 +1,5 @@
-#import requests
+#!/usr/bin/env python3
+
 import time
 import serial
 import serial.tools.list_ports
