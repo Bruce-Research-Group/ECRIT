@@ -8,7 +8,7 @@
 namespace SerialPsuConfig
 {
 	// Pins
-	static constexpr uint8_t CURRENT_PIN = A0;
+	static constexpr uint8_t CURRENT_PIN = A3;
 
 	// Timing
 	static constexpr unsigned long STEP_MS = 50;
@@ -23,13 +23,17 @@ namespace SerialPsuConfig
 	static constexpr float CURRENT_LIMIT_MIN_A = 0.01f;
 
 	// Current sense constants
-	static constexpr float VREF = 4.773f;           // (V) measured actual 5V supply voltage
-	static constexpr float MAX_CURRENT = 1.0f;      // (A) max current for the shunt resistor and gain used
-	static constexpr float RSHUNT = 0.75f;          // (Ohm) Shunt resistor value
-	static constexpr float Rf = 100000.0f;          // (Ohm) Rf Gain resistor value
-	static constexpr float Rg = 20000.0f;           // (Ohm) Rg Gain resistor value
+	static constexpr float VREF = 4.782f;           // (V) measured actual 5V supply voltage
+	static constexpr float RSHUNT = 0.51f;          // (Ohm) Shunt resistor value
+	static constexpr float Rf = 98000.0f;           // (Ohm) Rf Gain resistor value
+	static constexpr float Rg = 19210.0f;           // (Ohm) Rg Gain resistor value
 
 	static constexpr float GAIN = 1.0f + (Rf / Rg); // INA gain calculation
+	static constexpr float MAX_CURRENT = (VREF / (GAIN * RSHUNT)); // (mA) Theoretical max current
+
+	// Current calibration factors
+	// the actual current is consistently lower than the current we read from the ADC
+	static constexpr float CURRENT_CALIBRATION_FACTOR = 0.955f; // Adjust this factor based on calibration measurements
 
 	// Current sense config
 	static constexpr int ZERO_SAMPLES = 512;        // Number of samples to average for zero calibration
@@ -47,6 +51,7 @@ namespace SerialPsuConfig
 		ADC_FULL_SCALE,
 		ZERO_SAMPLES,
 		MEASURE_SAMPLES,
+		CURRENT_CALIBRATION_FACTOR,
 	};
 
 	inline const PsuConfig PSU_CFG = {

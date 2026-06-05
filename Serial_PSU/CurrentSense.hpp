@@ -11,6 +11,7 @@ struct CurrentSenseConfig
 	float adcFullScale;
 	int zeroSamples;
 	int measureSamples;
+	float calibrationFactor;
 };
 
 struct CurrentSenseState
@@ -38,5 +39,5 @@ inline float readCurrentMilliAmps(const CurrentSenseState &state, const CurrentS
 	const float raw = readAverage(cfg.pin, cfg.measureSamples);
 	const float vout = (raw - state.zeroRaw) * cfg.vref / cfg.adcFullScale;
 	const float currentA = vout / (cfg.gain * cfg.rshunt);
-	return currentA * 1000.0f;
+	return currentA * 1000.0f * cfg.calibrationFactor; // convert to mA and apply calibration
 }

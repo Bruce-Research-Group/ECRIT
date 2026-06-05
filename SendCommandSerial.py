@@ -558,10 +558,11 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 			while time.time() - start < constvals.duration: # loop until time has reached the set duration
 				l = constvals.arduino.readline().decode().strip()
 				print(l)
+				if (not l or "," not in l):
+					continue
 				f.write(l + "," + str(time.time()-start) + "\n")
 				values = l.split(',')
-				# print(f"values: {values}\nl: {l}")
-				if len(values) <3:
+				if (len(values) < 3):
 					continue
 				cur = values[0]
 				tar_vol = values[1]

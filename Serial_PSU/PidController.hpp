@@ -5,9 +5,9 @@
 class PidController
 {
 public:
-	float kp = 0.10f;
-	float ki = 0.10f;
-	float kd = 0.001f;
+	float kp = 0.01f;
+	float ki = 0.0f; // 0.10f;
+	float kd = 0.0f; // 0.001f;
 
 	void reset()
 	{
