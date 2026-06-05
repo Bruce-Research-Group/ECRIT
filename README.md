@@ -6,12 +6,15 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 </div>
 
+> [!IMPORTANT]
+> You are viewing the `legacy` branch of the ECRIT project. For the latest updates and features, please visit the `master` branch.
+
 ## Table of Contents
-1. [About the Project](#about-the-project)
-2. [Prerequisites](#prerequisites)
-3. [Installation](#installation)
-4. [Usage](#usage)
-5. [License](#license)
+- [About Ecrit](#about-ecrit)
+	- [Prerequisites](#prerequisites)
+	- [Installation](#installation)
+	- [Usage](#usage)
+	- [License](#license)
 
 # About Ecrit
 This is a system for controlling an electroplating experiment using a 3D printer and Arduino Uno.
