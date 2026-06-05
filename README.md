@@ -6,14 +6,14 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 </div>
 
-## Table of Contents
-1. [About the Project](#about-the-project)
-2. [Prerequisites](#prerequisites)
-3. [Installation](#installation)
-4. [Usage](#usage)
-5. [License](#license)
+## Table of Contents <!-- omit from toc -->
+- [About Ecrit](#about-ecrit)
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Usage](#usage)
+- [License](#license)
 
-# About Ecrit
+## About Ecrit
 This is a system for controlling an electroplating experiment using a 3D printer and Arduino Uno.
 
 ## Prerequisites
