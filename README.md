@@ -1,7 +1,7 @@
 <div align="center">
 	<h1>ECRIT Electroplating System</h1>
 
-![Project Logo](/Screenshots/new1.png)
+![Project Logo](/Screenshots/ControllerMenu.png)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 </div>
