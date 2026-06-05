@@ -18,12 +18,10 @@ This is a system for controlling an electroplating experiment using a 3D printer
 
 ## Prerequisites
 1. Ensure you have Python installed on your system. You can download it from [python.org](https://www.python.org/downloads/).
+2. Download and install the arduino IDE from [arduino.cc](https://www.arduino.cc/en/software/)
 
 ## Installation
-<!-- ### Windows OS
-1. Download 
-
-### Other Operating Systems -->
+### Set Up UI
 1. Clone the repository.
 ```bash
 git clone https://github.com/Bruce-Research-Group/ECRIT
@@ -40,6 +38,13 @@ chmod +x SendCommandSerial.py
 ```bash
 ./SendCommandSerial.py
 ```
+
+### Set Up Arduino
+1. Open the arduino IDE
+2. Click File
+3. Click Open File and find the cloned repository from the UI setup.
+4. Open the Eletroplating_Serial_R4 folder and open the "Electroplating_Serial_R4.ino" file within
+5. After the file opens, select the arduino board and upload the code to the board. For further information on how to do so use the guide linked [here](https://support.arduino.cc/hc/en-us/articles/4733418441116-Upload-a-sketch-in-Arduino-IDE)
 
 ## Usage
 - A GUI to conduct electroplating experiments easily
