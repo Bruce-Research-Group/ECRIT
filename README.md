@@ -48,20 +48,24 @@ chmod +x SendCommandSerial.py
 1. Upon starting the program you are presented with the following start menu. To begin click "Configure Ports" to open the ports selection menu.
 
 ![](/Screenshots/StartMenu.png)
+
 2. Click the dropdown to select your corresponding arduino and 3D printer ports. Then click the confirm button to complete the port selection. After successfully updating your ports, click the "Start" button on the start menu.
 
 ![](Screenshots/PortMenu.png)
+
 3. If successful, the program will open to the controller menu. Here start by clear any possible obstructions out of the way of your 3D printer, then click the home button to ensure your printer starts at the right position.
 
 The up and down arrows labeled "z-axis" are used to move the printer head up and down. The "y-axis controls forwards and backwards and the "x-axis controls left and right. You can use the options to the left of the arrows to choose how far the printer head moves on each click of the arrows.
 
 ![](Screenshots/ControllerMenu.png)
+
 4. Now use the arrow buttons to position the probe attached to the printer head just a few millimeters above the cell, then click "Set Baseline Height".
 5. Position the probe over one of your points and click "Set Geometric Area". Repeat this step until you have not points left to run your experiment on.
 6. Click Next
 7. Select Voltage or Current Mode
 
 ![](Screenshots/ParameterMenu.png)
+
 8. Input values for the distance between ??? and ??? (in millimeters), The time the experiment should take at each point (in seconds), set either the current in milliAmperes or voltage in volts.
 9. Click "START ELECTROPLATING"
 10. Wait for the experiment to start and monitor the real-time results.
