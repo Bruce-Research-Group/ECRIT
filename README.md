@@ -62,7 +62,7 @@ chmod +x SendCommandSerial.py
 
 ![](Screenshots/PortMenu.png)
 
-
+Ensure that your experimental apparatus is setup according to the procedure given in the research paper.
 The up and down arrows labeled "z-axis" are used to move the printer head up and down. The "y-axis controls forwards and backwards and the "x-axis controls left and right. Under the “Select Printer Step Size” option, whatever number you choose determines the travel distance of the platinum electrode or the cell.
 
 WARNING: If the number you choose from the “Select Printer Step Size” is more than the distance between your electrode and your cell, the electrode will crash into the cell. 
@@ -74,7 +74,7 @@ WARNING: If the number you choose from the “Select Printer Step Size” is mor
 
 ![](Screenshots/ParameterMenu.png)
 
-7. The following experimental variables will be registered in the boxes (a) Input values for the distance between electrode and substrate (in millimeters). The time the experiment should take at each point (in seconds), set either the current in milliAmperes or voltage in volts.
+7. The following experimental variables will be registered in the boxes (a) Input values for the distance between electrode and substrate (in millimeters). (b) The time the experiment should take at each point (in seconds). (c) Set either the current in milliAmperes or voltage in volts.
 8. Click "START ELECTROPLATING"
 9. Wait for the experiment to start and monitor the real-time results.
 
