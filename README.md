@@ -54,7 +54,7 @@ chmod +x SendCommandSerial.py
 
 ![](/Screenshots/StartMenu.png)
 
-2. If successful, the program will open to the controller menu. Here start by clear any possible obstructions out of the way of your 3D printer, then click the home button to ensure your printer starts at the right position.
+2. If successful, the program will open to the controller menu. Here start by clearing any possible obstructions out of the way of your 3D printer, then click the home button to ensure your printer starts at the right position.
 
 ![](Screenshots/ControllerMenu.png)
 
