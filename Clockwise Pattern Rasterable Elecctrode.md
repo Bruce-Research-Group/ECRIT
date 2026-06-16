@@ -1,1 +1,0 @@
-![](Screenshots/Clockwise%20Pattern%20Rasterable%20Electrodeposition.GIF)
