@@ -80,6 +80,8 @@ WARNING: If the number you choose from the “Select Printer Step Size” is mor
 
 ![](Screenshots/ActiveExperimentMenu.png)
 
+![Clockwise Pattern Rasterable Electrodeposition Video](/assets/ClockwisePatternRasterableElectrodeposition.mp4)
+
 ## License 
 - Bruce Research Group
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
