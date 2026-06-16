@@ -2,6 +2,7 @@ experiment_logs
 *.csv
 *.txt
 .vscode/
+options.json
 
 # OS X
 .DS_Store

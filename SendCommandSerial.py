@@ -1,10 +1,12 @@
-#import requests
+#!/usr/bin/env python3
+
 import time
 import serial
 import serial.tools.list_ports
 import math
 import tkinter as tk
 from tkinter import ttk
+from tkinter import messagebox
 import threading
 import matplotlib
 matplotlib.use('TkAgg')
@@ -16,128 +18,193 @@ import pandas as pd
 import os
 import shutil
 import platform
+import initUI
+import SelectPort
+import UtilUI
+import constvals
+
+global x_limit
 
 # =========
+def setup():
+	ports = serial.tools.list_ports.comports()
+	for p in ports:
+		print(p.device)
+	global options,config
 
-ports = serial.tools.list_ports.comports()
-for p in ports:
-	print(p.device)
+	# Load configuration from config.json
+	with open('config.json', 'r') as f:
+		config = json.load(f)
 
-# Load configuration from config.json
-with open('config.json', 'r') as f:
-    config = json.load(f)
+	# Load settings from options.json
+	with open("options.json","r") as f:
+		options = json.load(f)
 
-# settings
+	# print("asking user if they want to update port")
+	# #asks user if they want to select new port
 
-# Arduino serial port
-arduino_port = "/dev/ttyACM0"
-# Printer serial port
-printer_port = "/dev/ttyUSB0"
+def assignbasic_vals():
+	# settings
 
-# Matplotlib Graph
-# style.use('fivethirtyeight')
+	global arduino_port,printer_port
 
-# fig = plt.figure()
-# ax1 = fig.add_subplot(111)
+	# Arduino serial port
+	# arduino_port = "/dev/ttyACM0"
+	arduino_port = options["arduino_port"]
+	# Printer serial port
+	# printer_port = "/dev/ttyUSB0"
+	printer_port = options["printer_port"]
 
-# mode (True for current, False for voltage)
-current_mode = config["current_mode"]
-# target current in mA
-target_current = config["target_current"]
-# target voltage in V
-target_voltage = config["target_voltage"]
-# target duration in seconds
-duration = config["duration"]
-# distance between anode and cathode in mm
-diff_z = config["diff_z"]
+	# Matplotlib Graph
+	# style.use('fivethirtyeight')
 
-# machine limits
-travel_z = config["travel_z"]
-min_z = config["min_z"]
-mac_z = 45.9
-max_y = 142.0
-min_y = 110.0
-max_x = 160.0
-min_x = 129.0
+	# fig = plt.figure()
+	# ax1 = fig.add_subplot(111)
 
-x_limit = config["x_limit"]
-y_limit = config["y_limit"]
-z_limit = config["z_limit"]
+	global current_mode,target_current, target_voltage, duration, diff_z
 
-# current pos
-pos_x = config["pos_x"]
-pos_y = config["pos_y"]
-pos_z = config["pos_z"]
+	# mode (True for current, False for voltage)
+	current_mode = config["current_mode"]
+	# target current in mA
+	target_current = config["target_current"]
+	# target voltage in V
+	target_voltage = config["target_voltage"]
+	# target duration in seconds
+	duration = config["duration"]
+	# distance between anode and cathode in mm
+	diff_z = config["diff_z"]
 
-# center x,y
-cen_x = config["cen_x"]
-cen_y = config["cen_y"]
+	global min_z, max_z, min_y, max_y, max_x, min_x,travel_z
+	# machine limits
+	travel_z = config["travel_z"]
+	min_z = config["min_z"]
+	max_z = 45.9
+	max_y = 142.0
+	min_y = 110.0
+	max_x = 160.0
+	min_x = 129.0
 
-# target z
-tar_z = config["tar_z"]
+	global x_limit, y_limit, z_limit
+	x_limit = config["x_limit"]
+	# print(f"x limit is: {x_limit}")
+	y_limit = config["y_limit"]
+	z_limit = config["z_limit"]
 
-# single point mode
-single_point = config["single_point"]
+	global pos_x, pos_y, pos_z
+	# current pos
+	pos_x = config["pos_x"]
+	pos_y = config["pos_y"]
+	pos_z = config["pos_z"]
 
-# number of points on each circle
-points = config["points"]
-# distance between the radius of each circle
-inc_r = config["inc_r"]
+	global cen_x, cen_y
+	# center x,y
+	cen_x = config["cen_x"]
+	cen_y = config["cen_y"]
 
-# points
-points_coordinates = []
+	global tar_z, single_point, points, inc_r, points_coordinates
+	# target z
+	tar_z = config["tar_z"]
 
-# naming
-timestamp = ''
-filename = ''
-csvname = ''
+	# single point mode
+	single_point = config["single_point"]
 
-# =========
+	# number of points on each circle
+	points = config["points"]
+	# distance between the radius of each circle
+	inc_r = config["inc_r"]
 
-# find the actual min_z
-# min_z = min_z + diff_z
-# find the middle
-# cx = min_x + (max_x - min_x) / 2
-# cy = min_y + (max_y - min_y) / 2
+	# points
+	points_coordinates = []
 
-# # cx cy override
-# cx = 146
-# cy = 124
+	global timestamp, filename, csvname
+	# naming
+	timestamp = ''
+	filename = ''
+	csvname = ''
 
-# find the diameter
-d = min(max_x - min_x, max_y - min_y)
-# find the angle between each points
-inc_theta = 360.0 / points
+	# =========
 
-# connections
-arduino = serial.Serial(arduino_port, 9600)
-print("Serial connected to", arduino.name)
+	# find the actual min_z
+	# min_z = min_z + diff_z
+	# find the middle
+	# cx = min_x + (max_x - min_x) / 2
+	# cy = min_y + (max_y - min_y) / 2
 
-printer = serial.Serial(printer_port, 115200)
-print("Printer connected to", printer.name)
-time.sleep(5)
+	# # cx cy override
+	# cx = 146
+	# cy = 124
+
+	global d, inc_theta
+	# find the diameter
+	d = min(max_x - min_x, max_y - min_y)
+	# find the angle between each points
+	inc_theta = 360.0 / points
+
+def confirmports():
+	global arduino_port,printer_port
+	global arduino,printer
+	# connections
+	# try:
+	# 	arduino = serial.Serial(arduino_port, 9600)
+	# 	print("Serial connected to", arduino.name)
+	# 	# arduino.close()
+	# except OSError as e:
+	# 	print(e)
+	# 	UtilUI.tooltip("Could not open arduino port! Please update selected port")
+	# 	initUI.on_quit()
+	# 	initUI.startprogram()
+	# 	arduino_port = options["arduino_port"]
+	# 	printer_port = options["printer_port"]
+	# 	arduino = serial.Serial(arduino_port, 9600)
+	# 	print("Serial connected to", arduino.name)
+		
+
+	# try:
+	# 	printer = serial.Serial(printer_port, 115200)
+	# 	print("Printer connected to", printer.name)
+	# 	# printer.close()
+	# except OSError as e:
+	# 	print(e)
+	# 	print("Could not open printer port! Please update selected port")
+	# 	initUI.on_quit()
+	# 	initUI.startprogram()
+	# 	arduino_port = options["arduino_port"]
+	# 	printer_port = options["printer_port"]
+	# 	printer = serial.Serial(printer_port, 9600)
+	# 	print("Printer connected to", printer.name)
+	constvals.open_ports()
+
+		
+		
+	time.sleep(5)
 
 # function definitions
 
 def arduino_write(command):
-	arduino.write((command + "\n").encode())
+	constvals.arduino.write((command + "\n").encode())
 
 def printer_write(command):
-	printer.write((command + "\n").encode())
+	constvals.printer.write((command + "\n").encode())
 
 def move_head(x = None, y = None, z = None):
-	global pos_x, pos_y, pos_z
+	# global pos_x, pos_y, pos_z
 	command = "G1"
 	if x is not None:
 		command += " X" + str(x)
-		pos_x = x
+		constvals.pos_x = x
 	if y is not None:
 		command += " Y" + str(y)
-		pos_y = y
+		constvals.pos_y = y
 	if z is not None:
 		command += " Z" + str(z)
-		pos_z = z
+		constvals.pos_z = z
 	printer_write(command)
+
+def move_head_center():
+	move_confirm = messagebox.askokcancel(message="Move printer head to center?")
+	if move_confirm:
+		move_head(x=constvals.cen_x, y=constvals.cen_y)
+	# tk.Message(text="Move printer head to center?",)
 
 def show_state(state):
 	printer_write("M117 " + state)
@@ -178,91 +245,166 @@ def play_sound():
 		printer_write(command)
 
 def head_home():
-	global pos_x, pos_y, pos_z
-	pos_x=0
-	pos_y=0
-	pos_z=0
+	# global pos_x, pos_y, pos_z
+	constvals.pos_x=0
+	constvals.pos_y=0
+	constvals.pos_z=0
 	printer_write("G28")
 
 def move_x(amount):
-	global pos_x
-	pos_x = min(x_limit, max(0, pos_x + amount))
-	move_head(x=pos_x)
+	# global pos_x
+	constvals.pos_x = min(constvals.x_limit, max(0, constvals.pos_x + amount))
+	move_head(x=constvals.pos_x)
 
 def move_y(amount):
-	global pos_y
-	pos_y = min(y_limit, max(0, pos_y + amount))
-	move_head(y=pos_y)
+	# global pos_y
+	constvals.pos_y = min(constvals.y_limit, max(0, constvals.pos_y + amount))
+	move_head(y=constvals.pos_y)
 
 def move_z(amount):
-	global pos_z
-	pos_z = min(z_limit, max(0, pos_z + amount))
-	move_head(z=pos_z)
+	# global pos_z
+	constvals.pos_z = min(constvals.z_limit, max(0, constvals.pos_z + amount))
+	move_head(z=constvals.pos_z)
 
 def set_center_position():
-	global pos_x, pos_y, cen_x, cen_y
-	cen_x = pos_x
-	cen_y = pos_y
+	# global pos_x, pos_y, cen_x, cen_y
+	constvals.cen_x = constvals.pos_x
+	constvals.cen_y = constvals.pos_y
 
 def set_target_z_position():
-	global pos_z, tar_z
-	tar_z = pos_z
+	# global pos_z, tar_z
+	constvals.tar_z = constvals.pos_z
 	print("target z set")
 
-def set_distance_position():
-	global diff_z, tar_z, min_z
-	diff_z = float(input_distance.get(1.0, "end-1c"))
-	min_z = tar_z + diff_z
+def set_distance_position(input_distance):
+	# global diff_z, tar_z, min_z
+	# print(repr(input_distance.get("1.0","end-1c")))
+	if input_distance.get("1.0","end-1c") == "":
+		messagebox.showerror(message="Please input proper distance value that contains no symbols or letters aside from '.' and numbers.")
+		return False
+	constvals.diff_z = float(input_distance.get(1.0, "end-1c"))
+	constvals.min_z = constvals.tar_z + constvals.diff_z
 	print("Distance Updated")
+	return True
 	
-def set_duration_time():
-	global duration
-	duration = float(input_duration.get(1.0, "end-1c"))
-	print("Duration Updated")
+def set_duration_time(input_duration):
+	# global duration
+	if input_duration.get("1.0","end-1c") == "":
+		messagebox.showerror(message="Please input proper duration value that contains no symbols or letters aside from '.' and numbers.")
+		return False
+	constvals.duration = float(input_duration.get(1.0, "end-1c"))
+	print(f"Duration Updated to {constvals.duration}")
+	return True
 
-def set_current_target():
-	global target_current
-	target_current = float(input_current.get(1.0, "end-1c")) # Need to figure out how to update this live during electroplating
+def set_current_target(input_current):
+	# global target_current
+	if input_current.get("1.0","end-1c") == "":
+		messagebox.showerror(message="Please input proper current value that contains no symbols or letters aside from '.' and numbers.")
+		return False
+	constvals.target_current = float(input_current.get(1.0, "end-1c")) # Need to figure out how to update this live during electroplating
 	# arduino_write("c " + str(target_current))
 	# readSerial()
-	print("Current Updated to", target_current)
+	print("Current Updated to", constvals.target_current)
+	return True
 
-def set_voltage_target():
-	global target_voltage
-	target_voltage = float(input_voltage.get(1.0, "end-1c")) # Need to figure out how to update this live during electroplating
+def get_current_mode():
+	return constvals.current_mode
+
+def set_current_mode_val(val):
+	# global current_mode
+	constvals.current_mode = val
+
+def set_voltage_target(input_voltage):
+	# global target_voltage
+	if input_voltage.get("1.0","end-1c") == "":
+		messagebox.showerror(message="Please input proper voltage value that contains no symbols or letters aside from '.' and numbers.")
+		return False
+	constvals.target_voltage = float(input_voltage.get(1.0, "end-1c")) # Need to figure out how to update this live during electroplating
 	# arduino_write("c " + str(target_current))
 	# readSerial()
-	print("Voltage Updated to", target_voltage)
+	print("Voltage Updated to", constvals.target_voltage)
+	return True
 
-def set_point_mode():
-	global single_point, points_coordinates
-	if single_point:
+def set_point_mode(set_point,set_point1,points_label):
+	# global single_point
+	if constvals.single_point:
 		set_point.config(text="Single Point OFF", relief="raised")
 		set_point1.grid(row=10, column=8, padx=5, pady=5)
-		points_label.config(text=f'{len(points_coordinates)} points set')
+		points_label.config(text=f'{len(constvals.points_coordinates)} points set')
 	else:
 		set_point.config(text="Single Point ON", relief="sunken")
 		set_point1.grid_forget()
 		points_label.config(text="Using Center point")
-		points_coordinates = []
-	single_point = not single_point
+		constvals.points_coordinates = []
+	constvals.single_point = not constvals.single_point
 
-def set_mode_electroplating():
-	global current_mode
-	if current_mode:
+def set_mode_electroplating(set_mode,input_current,set_current,input_voltage,set_voltage,current_label,voltage_label):
+	# global current_mode
+	if constvals.current_mode:
 		set_mode.config(text="Voltage Mode", relief="raised")
+
+		input_current.delete('1.0', "end")
+		
+		input_current.config(state="disabled")
+		set_current.config(state="disabled")
+		current_label.config(state="disabled")
+
+		input_voltage.config(state="normal")
+		set_voltage.config(state="normal")
+		voltage_label.config(state="normal")
+		
 	else:
 		set_mode.config(text="Current Mode", relief="sunken")
-	current_mode = not current_mode
 
-def set_a_point():
-	global points_coordinates, pos_x, pos_y
-	points_coordinates.append((pos_x, pos_y))
-	points_label.config(text=f'{len(points_coordinates)} points set')
-	print("point set at", pos_x, pos_y)
+		input_voltage.delete('1.0', "end")
+
+		input_voltage.config(state="disabled")
+		set_voltage.config(state="disabled")
+		voltage_label.config(state="disabled")
+
+		input_current.config(state="normal")
+		set_current.config(state="normal")
+		current_label.config(state="normal")
+	constvals.current_mode = not constvals.current_mode
+
+def set_current_mode(set_mode,input_current,set_current,input_voltage,set_voltage,current_label,voltage_label,set_volt,set_curr):
+	set_current_mode_val(False)
+	set_volt.config(bg="white")
+	set_curr.config(bg="#b1c6eb")
+	set_mode_electroplating(set_mode,input_current,set_current,input_voltage,set_voltage,current_label,voltage_label)
+
+
+def set_voltage_mode(set_mode,input_current,set_current,input_voltage,set_voltage,current_label,voltage_label,set_volt,set_curr):
+	set_current_mode_val(True)
+	set_volt.config(bg="#b1c6eb")
+	set_curr.config(bg="white")
+	set_mode_electroplating(set_mode,input_current,set_current,input_voltage,set_voltage,current_label,voltage_label)
+
+
+def set_a_point(points_label,undo_point):
+	# global pos_x, pos_y
+	if (constvals.pos_x,constvals.pos_y) not in constvals.points_coordinates:
+		undo_point.config(state="normal")
+		constvals.points_coordinates.append((constvals.pos_x, constvals.pos_y))
+		points_label.config(text=f'{len(constvals.points_coordinates)} points set')
+		print("point set at", constvals.pos_x, constvals.pos_y)
+	else:
+		print(f"A point is already set at ({constvals.pos_x},{constvals.pos_y})")
+
+def undo_set_point(points_label,undo_point):
+	if len(constvals.points_coordinates) == 0:
+		print("No points to remove.")
+		return
+	print(f"point: {constvals.points_coordinates.pop()} removed!")
+	points_label.config(text=f'{len(constvals.points_coordinates)} points set')
+	if len(constvals.points_coordinates) == 0:
+		points_label.config(text="0")
+		undo_point.config(state="disabled")
+
+		
 
 def readSerial():
-	l = arduino.readline().decode()
+	l = constvals.arduino.readline().decode()
 	print("Arduino:", l, end="")
 
 def animate(i):
@@ -270,11 +412,17 @@ def animate(i):
 	ax1.clear()
 	ax1.plot(vol_list, time_list)
 
-def do_task():
-	threading.Thread(target=start_electroplating, args=()).start()
+def get_points_coords():
+	return constvals.points_coordinates
+
+# def do_task():
+
+# 	threading.Thread(target=start_electroplating, args=()).start()
+
+
 
 def download_data():
-	global csvname
+	# global csvname
 	# Determine the default download folder based on the operating system
 	if platform.system() == 'Windows':
 			download_folder = os.path.join(os.environ['USERPROFILE'], 'Downloads')
@@ -282,16 +430,22 @@ def download_data():
 			download_folder = os.path.join(os.environ['HOME'], 'Downloads')
 
 	# Define the full path to save the file in the Downloads folder
-	destination_path = os.path.join(download_folder, os.path.basename(csvname))
+	destination_path = os.path.join(download_folder, os.path.basename(constvals.csvname))
 
 	# Copy the CSV file to the Downloads folder
-	shutil.copy(csvname, destination_path)
+	shutil.copy(constvals.csvname, destination_path)
+	messagebox.showinfo(title="File Saved!",message=f"File downloaded to {destination_path}")
 	print(f"File downloaded to {destination_path}")
 	
 
-def start_electroplating():
-	global points_coordinates, vol, tar_vol, cur, timestamp, filename, csvname
+def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,vol_list,time_list,top,root,param_frm):
+	# global vol, tar_vol, cur, timestamp, filename, csvname,csvdata
+	# for w in param_frm.winfo_children():
+	# 		w.configure(state="disabled")
 	try:
+		
+
+		print(f"Ports are open: {constvals.are_open()}")
 		# send reset command to arduino
 		arduino_write("r")
 		readSerial()
@@ -308,39 +462,39 @@ def start_electroplating():
 			'Time Accumulative':[]
 		}
 		
-		timestamp = time.strftime("%Y%m%d-%H%M%S")
-		filename = "log_" + timestamp + ".txt"
-		csvname = "log_" + timestamp + ".csv"
-		f = open(filename, "w")
+		constvals.timestamp = time.strftime("%Y%m%d-%H%M%S")
+		constvals.filename = "log_" + constvals.timestamp + ".txt"
+		constvals.csvname = "log_" + constvals.timestamp + ".csv"
+		f = open(constvals.filename, "w")
 		f.write("Staring Time " + str(time.time()) + "\n")
 		# log settings
-		f.write("current_mode " + str(current_mode) + "\n")
-		f.write("target_current " + str(target_current) + "\n")
-		f.write("target_voltage " + str(target_voltage) + "\n")
-		f.write("duration " + str(duration) + "s\n")
-		f.write("diff_z " + str(diff_z) + "mm\n")
-		f.write("points " + str(len(points_coordinates)) + "\n")
-		f.write("inc_r " + str(inc_r) + "mm\n")
+		f.write("current_mode " + str(constvals.current_mode) + "\n")
+		f.write("target_current " + str(constvals.target_current) + "\n")
+		f.write("target_voltage " + str(constvals.target_voltage) + "\n")
+		f.write("duration " + str(constvals.duration) + "s\n")
+		f.write("diff_z " + str(constvals.diff_z) + "mm\n")
+		f.write("points " + str(len(constvals.points_coordinates)) + "\n")
+		f.write("inc_r " + str(constvals.inc_r) + "mm\n")
 		f.write("====================================\n")
 
 		# move the head to the travel height
-		move_head(z=travel_z)
+		move_head(z=constvals.travel_z)
 		show_state("To travel height")
 		time.sleep(40)
 
-		# move the head to the center of the circle
-		move_head(x=cen_x, y=cen_y)
-		show_state("Centering")
-		time.sleep(5)
+		# # move the head to the center of the circle
+		# move_head(x=constvals.cen_x, y=constvals.cen_y)
+		# show_state("Centering")
+		# time.sleep(5)
 
 		# move the head to the right height
-		move_head(z=min_z+2)
+		move_head(z=constvals.min_z+2)
 		show_state("To starting height")
 		time.sleep(30)
 
 
-		if single_point:
-			points_coordinates = [(cen_x, cen_y)]
+		# if single_point:
+		# 	points_coordinates = [(cen_x, cen_y)]
 		# else:
 		# 	# polar coord
 		# 	r = inc_r
@@ -367,15 +521,15 @@ def start_electroplating():
 
 		i=-1
 		# start the loop
-		for (x, y) in points_coordinates:
+		for (x, y) in constvals.points_coordinates:
 			i+=1
 
 			# csv space
-			csvdata['Current'].append("")
-			csvdata['Target Voltage'].append("")
-			csvdata['Actual Voltage'].append("")
-			csvdata['Time Individual'].append("")
-			csvdata['Time Accumulative'].append("")
+			constvals.csvdata['Current'].append("")
+			constvals.csvdata['Target Voltage'].append("")
+			constvals.csvdata['Actual Voltage'].append("")
+			constvals.csvdata['Time Individual'].append("")
+			constvals.csvdata['Time Accumulative'].append("")
 
 			# log the point
 			point_str = "x: " + "{:.3f}".format(x) + ", y: " + "{:.3f}".format(y)
@@ -387,22 +541,22 @@ def start_electroplating():
 			time.sleep(10)
 
 			# move the head down
-			move_head(z=min_z)
+			move_head(z=constvals.min_z)
 			time.sleep(20)
 
 			# signal the arduino to start electroplating
-			if current_mode:
-				arduino_write("c " + str(target_current))
+			if constvals.current_mode:
+				arduino_write("c " + str(constvals.target_current))
 				readSerial()
 			else:
-				arduino_write("v " + str(target_voltage))
+				arduino_write("v " + str(constvals.target_voltage))
 				readSerial()
 			print("on")
 
 			# record the start time so we know how long it has been
 			start = time.time()
-			while time.time() - start < duration: # loop until time has reached the set duration
-				l = arduino.readline().decode().strip()
+			while time.time() - start < constvals.duration: # loop until time has reached the set duration
+				l = constvals.arduino.readline().decode().strip()
 				print(l)
 				if (not l or "," not in l):
 					continue
@@ -413,17 +567,17 @@ def start_electroplating():
 				cur = values[0]
 				tar_vol = values[1]
 				vol = values[2]
-				csvdata['Current'].append(float(cur))
-				csvdata['Target Voltage'].append(float(tar_vol))
-				csvdata['Actual Voltage'].append(float(vol))
-				csvdata['Time Individual'].append(float(time.time()-start))
-				csvdata['Time Accumulative'].append(float(time.time()-start)+ i*duration)
+				constvals.csvdata['Current'].append(float(cur))
+				constvals.csvdata['Target Voltage'].append(float(tar_vol))
+				constvals.csvdata['Actual Voltage'].append(float(vol))
+				constvals.csvdata['Time Individual'].append(float(time.time()-start))
+				constvals.csvdata['Time Accumulative'].append(float(time.time()-start)+ i*constvals.duration)
 				cur_label.config(text=f'current: {cur}')
 				vol_label.config(text=f'voltage: {vol}')
 				tar_vol_label.config(text=f'target voltage: {tar_vol}')
 				vol_list.append(float(vol))
 				time_list.append(float(time.time()-start))
-				time_remaining_label.config(text=f"time left: {int(duration+start-time.time())}")
+				time_remaining_label.config(text=f"time left: {int(constvals.duration+start-time.time())}")
 
 			# signal the arduino to stop electroplating
 			arduino_write("f")
@@ -433,161 +587,98 @@ def start_electroplating():
 			time.sleep(0.5)
 
 			# move the head up
-			move_head(z=min_z+2)
+			move_head(z=constvals.min_z+2)
 			time.sleep(10)
+		
 
 		# We are done with the loop
-		move_head(z=travel_z)
+		move_head(z=constvals.travel_z)
 		# play_sound()
 
 	# if Ctrl-C detected quit gracefully
 	except KeyboardInterrupt:
 		print("Ctrl-C detected, quitting")
 		# Stop the electroplating and move the head to travel height
-		move_head(z=travel_z)
+		move_head(z=constvals.travel_z)
 
 	finally:
-		df = pd.DataFrame(csvdata)
-		df.to_csv(csvname, index=False)
+		df = pd.DataFrame(constvals.csvdata)
+		df.to_csv(constvals.csvname, index=False)
 		arduino_write("f")
 		show_state("Done")
+		download_data()
+		# constvals.points_coordinates.clear()
+		top.destroy()
 		#arduino.close()
 		#printer.close()
 		f.close()
+		# for w in param_frm.winfo_children():
+		# 	w.configure(state="normal")
+		# if constvals.current_mode:
+
+		# print("Experiment complete!")
+		# constvals.new_exp = messagebox.askyesno(title="New Experiment?",message="Start New Experiment?")
+		# print("destroying...")
+		# root.destroy()
+		# root.quit()
+		# print("destroyed!")
+
+def halt_experiment():
+	arduino_write("f")
 
 # gui
-m = tk.Tk()
-m.configure(background='#2E3440')
-m.title('Electroplating GUI')
-style = ttk.Style()
-style.configure('TButton',
-                font=('Helvetica', 12),
-                padding=6,
-                foreground='#FFFFFF',
-                background='#4CAF50', # Green background color
-                borderwidth=0)
-style.map('TButton',
-          foreground=[('pressed', '#FFFFFF'), ('active', '#FFFFFF'), ('!disabled', '#FFFFFF')],
-          background=[('pressed', '#388E3C'), ('active', '#45A049'), ('!disabled', '#4CAF50')])
-style.configure('TLabel',
-								font=('Helvetica', 12),
-								foreground='#FFFFFF',
-								background = '#2E3440')
-style.configure('TRadiobutton',
-								font=('Helvetica', 12),
-								foreground='#FFFFFF',
-								background = '#2E3440')
-style.configure('TFrame', background='#2E3440')
-tabControl = ttk.Notebook(m)
-tab1 = ttk.Frame(tabControl) 
-tab2 = ttk.Frame(tabControl)
-tab3 = ttk.Frame(tabControl)
-tab4 = ttk.Frame(tabControl)
-tab1.configure(style='TFrame')
-tab2.configure(style='TFrame')
-tab3.configure(style='TFrame')
-tab4.configure(style='TFrame')
-tabControl.add(tab1, text ='System Calibration') 
-tabControl.add(tab2, text ='Operational Parameter Settings')
-tabControl.add(tab3, text ='Starting Experiment') 
-tabControl.add(tab4, text ='Experimental Data Analysis')
-tabControl.pack(expand = 1, fill ="both") 
+def buildMainUI():
+	UtilUI.startmainUI()
+###
 
-# values
-cur = "current: no reading yet"
-vol = "actual voltage: no reading yet"
-tar_vol = "target voltage: no reading yet"
-vol_list = []
-time_list = []
+def get_config_val(val_name):
+	with open('config.json', 'r') as f:
+		config = json.load(f)
+	return config[val_name]
 
-# homing function
-homing = ttk.Button(tab1, text='Home', style='TButton',width=5, command=lambda : head_home()) ; homing.grid(row = 1, column = 1)
+def get_option_val(val_name):
+	with open('options.json', 'r') as f:
+		options = json.load(f)
+	return options[val_name]
 
-# setting increment
-increment = tk.DoubleVar(None, 1.0)
-increment_options = (('0.1', 0.1), ('1', 1.0), ('10', 10.0), ('100', 100.0))
+def get_printer():
+	port = get_option_val("printer_port")
+	ser = serial.Serial()
+	ser.baudrate = 19200
+	ser.port = port
+	# ser.open()
+	return ser
 
-increment_label = ttk.Label(tab1, text="Input the Increment Size:", style='TLabel')
-increment_label.grid(row = 3, column = 0, padx=5, pady=5)
-i=4
-for increments in increment_options:
-    r = ttk.Radiobutton(
-        tab1,
-        text=increments[0],
-        value=increments[1],
-				style='TRadiobutton',
-        variable=increment
-    )
-    r.grid(row = i, column = 0, sticky='w', padx=5, pady=5)
-    i+=1
+def get_arduino():
+	port = get_option_val("arduino_port")
+	ser = serial.Serial()
+	ser.baudrate = 19200
+	ser.port = port
+	# ser.open()
+	return ser
 
-#movement functions
-up = tk.Button(tab1, text='↑', width=2, command=lambda : move_z(increment.get()))
-up.grid(row=4, column=7, padx=20, pady=5)
-down = tk.Button(tab1, text='↓', width=2, command=lambda : move_z(-increment.get()))
-down.grid(row=6, column=7, padx=20, pady=5)
-z_label = ttk.Label(tab1, text="z-axis", style='TLabel')
-z_label.grid(row = 7, column = 7, padx=5, pady=5)
-left = tk.Button(tab1, text='←', width=2, command=lambda : move_x(-increment.get()))
-left.grid(row=5, column=3, padx=5, pady=5)
-right = tk.Button(tab1, text='→', width=2, command=lambda : move_x(increment.get()))
-right.grid(row=5, column=5, padx=5, pady=5)
-y_label = ttk.Label(tab1, text="x-axis", style='TLabel')
-y_label.grid(row = 5, column = 2, padx=5, pady=5)
-forward = tk.Button(tab1, text='↑', width=2, command=lambda : move_y(-increment.get()))
-forward.grid(row=4, column=4, padx=5, pady=5)
-back = tk.Button(tab1, text='↓', width=2, command=lambda : move_y(increment.get()))
-back.grid(row=6, column=4, padx=5, pady=5)
-x_label = ttk.Label(tab1, text="y-axis", style='TLabel')
-x_label.grid(row = 7, column = 4, padx=5, pady=5)
-set_center = tk.Button(tab1, text='SET CENTER', width=20, command=lambda : set_center_position()) ; set_center.grid(row=8, column=1, padx=5, pady=5)
-move_to_center = tk.Button(tab1, text='MOVE TO CENTER', width=20, command=lambda : move_head(x=cen_x, y=cen_y)) ; move_to_center.grid(row=9, column=1, padx=5, pady=5)
-set_target_z = tk.Button(tab1, text='SET SURFACE Z', width=20, command=lambda : set_target_z_position()) ; set_target_z.grid(row=10, column=1, padx=5, pady=5)
-move_to_target_z = tk.Button(tab1, text='MOVE TO SURFACE Z', width=20, command=lambda : move_head(z=tar_z)) ; move_to_target_z.grid(row=11, column=1, padx=5, pady=5)
-set_point = tk.Button(tab1, text='Single Point ON', width=20, relief='sunken', command=lambda : set_point_mode()) ; set_point.grid(row=8, column=8, padx=5, pady=5)
-set_point1 = tk.Button(tab1, text='SET Point', width=20, command=lambda : set_a_point())
-points_label = ttk.Label(tab1, text="Using Center point", style='TLabel')
-points_label.grid(row = 9, column = 8, padx=5, pady=5)
-set_mode = tk.Button(tab1, text='Current Mode', width=20, relief='sunken', command=lambda : set_mode_electroplating()) ; set_mode.grid(row=11, column=8, padx=5, pady=5)
+def main():
+	#Basic Startup
+	print("starting program...")
+	initUI.startprogram()
+	print("running setup...")
+	setup()
+	print("assigning configured values...")
+	assignbasic_vals()
+	# print(config)
 
-#Operational Parameters
-distance_label = ttk.Label(tab2, text="Distance of WE from CE (mm):", style='TLabel')
-distance_label.grid(row = 0, column = 0, sticky='w', padx=5, pady=5)
-duration_label = ttk.Label(tab2, text="Electrodeposition time (sec):", style='TLabel')
-duration_label.grid(row = 1, column = 0, sticky='w', padx=5, pady=5)
-current_label = ttk.Label(tab2, text="Set a Current (mA):", style='TLabel')
-current_label.grid(row = 2, column = 0, sticky='w', padx=5, pady=5)
-voltage_label = ttk.Label(tab2, text="Set a Voltage (V):", style='TLabel')
-voltage_label.grid(row = 3, column = 0, sticky='w', padx=5, pady=5)
-input_distance = tk.Text(tab2, height=1, width=5) ; input_distance.grid(row=0, column=1, sticky='w', padx=5, pady=5)
-input_duration = tk.Text(tab2, height=1, width=5) ; input_duration.grid(row=1, column=1, sticky='w', padx=5, pady=5)
-input_current = tk.Text(tab2, height=1, width=5) ; input_current.grid(row=2, column=1, sticky='w', padx=5, pady=5)
-input_voltage = tk.Text(tab2, height=1, width=5) ; input_voltage.grid(row=3, column=1, sticky='w', padx=5, pady=5)
-set_distance = tk.Button(tab2, text='SET DISTANCE', width=20, command=lambda : set_distance_position()) ; set_distance.grid(row=0, column=2, padx=5, pady=5)
-set_duration = tk.Button(tab2, text='SET DURATION', width=20, command=lambda : set_duration_time()) ; set_duration.grid(row=1, column=2, padx=5, pady=5)
-set_current = tk.Button(tab2, text='SET CURRENT', width=20, command=lambda : set_current_target()) ; set_current.grid(row=2, column=2, padx=5, pady=5)
-set_voltage = tk.Button(tab2, text='SET VOLTAGE', width=20, command=lambda : set_voltage_target()) ; set_voltage.grid(row=3, column=2, padx=5, pady=5)
+	#Attempts to connect to ports and set printer to start position
+	print("confirming ports...")
+	confirmports() 
+	print(f"Arduino Port is {constvals.arduino_port}\nPrinter Port is {constvals.printer_port}")
+	# print(x_limit)
 
-#value display
-cur_label = tk.Label(tab3)
-cur_label.config(text=cur)
-cur_label.grid(row=0, column=0, sticky='w', padx=5, pady=5)
-vol_label = tk.Label(tab3)
-vol_label.config(text=vol)
-vol_label.grid(row=1, column=0, sticky='w', padx=5, pady=5)
-tar_vol_label = tk.Label(tab3)
-tar_vol_label.config(text=tar_vol)
-tar_vol_label.grid(row=2, column=0, sticky='w', padx=5, pady=5)
-time_remaining_label = tk.Label(tab3)
-time_remaining_label.config(text="time left: no reading yet")
-time_remaining_label.grid(row=3, column=0, sticky='w', padx=5, pady=5)
+	# while constvals.new_exp:
+	# 	constvals.new_exp = False
+	#Launches Main Application Window
+	print("Launching Application...")
+	buildMainUI()
 
-#electroplating functions
-start = tk.Button(tab2, text='START ELECTROPLATING', width=20, command=lambda : do_task()) ; start.grid(row=4, column=2, sticky='w', padx=5, pady=5)
-
-#data downloading
-download = tk.Button(tab4, text='DOWNLOAD DATA', width=20, command=lambda : download_data()) ; download.grid(row=0, column=0, sticky='w', padx=5, pady=5)
-
-# ani = animation.FuncAnimation(fig, animate, interval=1000)
-# plt.show()
-m.mainloop()
+if (__name__ == "__main__"):
+	main()
+	# buildUI()
