@@ -129,7 +129,7 @@ d = min(max_x - min_x, max_y - min_y)
 inc_theta = 360.0 / points
 
 global arduino,printer
-arduino = serial.Serial(baudrate=9600)
+arduino = serial.Serial(baudrate=115200)
 printer = serial.Serial(baudrate=115200)
 
 
@@ -169,17 +169,18 @@ def open_ports():
         print("Ports are open.")
         arduino.write(("r\n").encode()) #Sends reset command to arduino to confirm connection
         print("Sent test byte to arduino...")
-        arduino_output = arduino.readline()
-        print(f"Undecoded: {arduino_output}")
-        if arduino_output:
-            arduino_output = arduino_output.decode()
-            print(f"Output from Arduino: {arduino_output}")
+        arduino_output = arduino.readline().decode()
+        # print(f"Undecoded: {arduino_output}")
+        # if arduino_output:
+        #     arduino_output = arduino_output.decode()
+        print(f"Output from Arduino: {arduino_output}")
 
         if arduino_output.__eq__("Reset\r\n"):
             print("Confirmed connection to arduino")
             arduino_flag = True
         else:
             Connection_Error()
+            raise Exception("Could not establish connection with Arduino")
         # print(f"repr arduino output: '{repr(arduino_output)}'")
 
         printer.write(("M300 P100\n").encode())
@@ -191,6 +192,7 @@ def open_ports():
             printer_flag = True
         else:
             Connection_Error() #might want to make specific to issue connecting to printer or other device
+            raise Exception("Could not confirm connection to 3D Printer")
         print(f"repr printer output: '{repr(printer_output)}'")
 
         if arduino_flag == True and printer_flag == True:
