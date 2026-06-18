@@ -162,6 +162,11 @@ def open_ports():
     try:
         arduino.open()
         printer.open()
+        print("Ports are open.")
+        # arduino.write(("r\n").encode())
+        # print("Sent test byte to arduino...")
+        # print(f"Output from arduino: {arduino.readall()}")
+        # print(f"Output from printer: {printer.readall()}")
         can_start = True
     except:
         print("Could not open port.")
@@ -173,4 +178,5 @@ def get_start():
     return can_start
 
 def are_open():
+    
     return (arduino.is_open == True and printer.is_open==True)

@@ -658,10 +658,16 @@ def get_arduino():
 	# ser.open()
 	return ser
 
+def launch_error():
+	messagebox.showerror(title="ERROR",message="Could not launch 'ECRIT' Application!\n Try configuring your ports on the main menu.")
+
+
 def main():
 	#Basic Startup
 	print("starting program...")
 	initUI.startprogram()
+	if initUI.start_flag == False:
+		return
 	print("running setup...")
 	setup()
 	print("assigning configured values...")
@@ -682,8 +688,7 @@ def main():
 		buildMainUI()
 	else:
 		print("Could not launch application.")
-		messagebox.showerror(title="ERROR",message="Could not launch 'ECRIT' Application!\n Try configuring your ports on the main menu.")
-
+		launch_error()
 if (__name__ == "__main__"):
 	main()
 	# buildUI()

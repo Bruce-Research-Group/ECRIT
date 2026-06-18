@@ -10,7 +10,9 @@ import UtilUI
 import constvals
 
 global exit
+global start_flag
 exit = False
+start_flag = False
 
 try:
     with open("options.json","r") as f:
@@ -79,6 +81,8 @@ def canquit():
     
 
 def autodetectports(root):
+    global start_flag
+    start_flag = True
     arduino = False
     printer = False
 
