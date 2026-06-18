@@ -480,6 +480,7 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 		# move the head to the travel height
 		move_head(z=constvals.travel_z)
 		show_state("To travel height")
+		
 		time.sleep(40)
 
 		# # move the head to the center of the circle
@@ -676,8 +677,12 @@ def main():
 	# while constvals.new_exp:
 	# 	constvals.new_exp = False
 	#Launches Main Application Window
-	print("Launching Application...")
-	buildMainUI()
+	if constvals.get_start():
+		print("Launching Application...")
+		buildMainUI()
+	else:
+		print("Could not launch application.")
+		messagebox.showerror(title="ERROR",message="Could not launch 'ECRIT' Application!\n Try configuring your ports on the main menu.")
 
 if (__name__ == "__main__"):
 	main()

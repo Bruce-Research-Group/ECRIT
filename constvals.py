@@ -5,6 +5,8 @@ import serial.tools.list_ports
 
 
 ports = serial.tools.list_ports.comports()
+global can_start
+can_start = False
 for p in ports:
     print(p.device)
 global options,config
@@ -153,15 +155,22 @@ def update_ports():
     printer_port = options["printer_port"]
 
 def open_ports():
+    global can_start
     arduino.port = arduino_port
     printer.port = printer_port
-
+    
     try:
         arduino.open()
         printer.open()
+        can_start = True
     except:
         print("Could not open port.")
+        # can_start==True
+        can_start = False
         # sys.exit()
+
+def get_start():
+    return can_start
 
 def are_open():
     return (arduino.is_open == True and printer.is_open==True)
