@@ -2,6 +2,7 @@ import json
 import sys 
 import serial
 import serial.tools.list_ports
+from tkinter import messagebox
 
 
 ports = serial.tools.list_ports.comports()
@@ -158,21 +159,53 @@ def open_ports():
     global can_start
     arduino.port = arduino_port
     printer.port = printer_port
+
+    arduino_flag = False
+    printer_flag = False
     
     try:
         arduino.open()
         printer.open()
         print("Ports are open.")
-        # arduino.write(("r\n").encode())
-        # print("Sent test byte to arduino...")
-        # print(f"Output from arduino: {arduino.readall()}")
-        # print(f"Output from printer: {printer.readall()}")
-        can_start = True
-    except:
-        print("Could not open port.")
+        arduino.write(("r\n").encode()) #Sends reset command to arduino to confirm connection
+        print("Sent test byte to arduino...")
+        arduino_output = arduino.readline()
+        print(f"Undecoded: {arduino_output}")
+        if arduino_output:
+            arduino_output = arduino_output.decode()
+            print(f"Output from Arduino: {arduino_output}")
+
+        if arduino_output.__eq__("Reset\r\n"):
+            print("Confirmed connection to arduino")
+            arduino_flag = True
+        else:
+            Connection_Error()
+        # print(f"repr arduino output: '{repr(arduino_output)}'")
+
+        printer.write(("M300 P100\n").encode())
+        print("Sent test byte to printer...")
+        # printer.readline().decode()
+        printer_output = printer.readline().decode()
+        if printer_output.__eq__("ok\n"):
+            print("Confirmed connection to printer")
+            printer_flag = True
+        else:
+            Connection_Error() #might want to make specific to issue connecting to printer or other device
+        print(f"repr printer output: '{repr(printer_output)}'")
+
+        if arduino_flag == True and printer_flag == True:
+            printer.write("M117 Running Application...\n".encode())
+            can_start = True
+
+    except Exception as e:
+        print("Could not open ports.")
+        print(f"Received Error:{e}")
         # can_start==True
         can_start = False
         # sys.exit()
+
+def Connection_Error():
+    messagebox.showerror(title="Can't Start Program",message="Could not communicate with connected devices.\nTry swapping the assigned ports for the arduino and printer ports.")
 
 def get_start():
     return can_start

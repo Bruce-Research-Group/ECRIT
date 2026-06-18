@@ -373,13 +373,11 @@ def set_current_mode(set_mode,input_current,set_current,input_voltage,set_voltag
 	set_curr.config(bg="#b1c6eb")
 	set_mode_electroplating(set_mode,input_current,set_current,input_voltage,set_voltage,current_label,voltage_label)
 
-
 def set_voltage_mode(set_mode,input_current,set_current,input_voltage,set_voltage,current_label,voltage_label,set_volt,set_curr):
 	set_current_mode_val(True)
 	set_volt.config(bg="#b1c6eb")
 	set_curr.config(bg="white")
 	set_mode_electroplating(set_mode,input_current,set_current,input_voltage,set_voltage,current_label,voltage_label)
-
 
 def set_a_point(points_label,undo_point):
 	# global pos_x, pos_y
@@ -400,9 +398,7 @@ def undo_set_point(points_label,undo_point):
 	if len(constvals.points_coordinates) == 0:
 		points_label.config(text="0")
 		undo_point.config(state="disabled")
-
-		
-
+	
 def readSerial():
 	l = constvals.arduino.readline().decode()
 	print("Arduino:", l, end="")
@@ -414,12 +410,6 @@ def animate(i):
 
 def get_points_coords():
 	return constvals.points_coordinates
-
-# def do_task():
-
-# 	threading.Thread(target=start_electroplating, args=()).start()
-
-
 
 def download_data():
 	# global csvname
@@ -437,7 +427,6 @@ def download_data():
 	messagebox.showinfo(title="File Saved!",message=f"File downloaded to {destination_path}")
 	print(f"File downloaded to {destination_path}")
 	
-
 def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,vol_list,time_list,top,root,param_frm):
 	# global vol, tar_vol, cur, timestamp, filename, csvname,csvdata
 	# for w in param_frm.winfo_children():
@@ -662,6 +651,7 @@ def launch_error():
 	messagebox.showerror(title="ERROR",message="Could not launch 'ECRIT' Application!\n Try configuring your ports on the main menu.")
 
 
+
 def main():
 	#Basic Startup
 	print("starting program...")
@@ -689,6 +679,7 @@ def main():
 	else:
 		print("Could not launch application.")
 		launch_error()
+
 if (__name__ == "__main__"):
 	main()
 	# buildUI()
