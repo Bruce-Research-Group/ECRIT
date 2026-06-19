@@ -196,7 +196,7 @@ def open_ports():
         print(f"repr printer output: '{repr(printer_output)}'")
 
         if arduino_flag == True and printer_flag == True:
-            printer.write("M117 Running Application...\n".encode())
+            printer.write(("M117 " + "Running ECRIT Application...\n").encode())
             can_start = True
 
     except Exception as e:

@@ -470,44 +470,16 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 		move_head(z=constvals.travel_z)
 		show_state("To travel height")
 		
-		time.sleep(40)
-
-		# # move the head to the center of the circle
-		# move_head(x=constvals.cen_x, y=constvals.cen_y)
-		# show_state("Centering")
-		# time.sleep(5)
+		wait_for_motion_end()
+		# time.sleep(40)
 
 		# move the head to the right height
 		move_head(z=constvals.min_z+2)
 		show_state("To starting height")
-		time.sleep(30)
+		wait_for_motion_end()
+		# time.sleep(30)
 
 
-		# if single_point:
-		# 	points_coordinates = [(cen_x, cen_y)]
-		# else:
-		# 	# polar coord
-		# 	r = inc_r
-		# 	theta = 0
-
-		# 	while True:
-		# 		# if we finished one circle, move the radius out to begin the next circle
-		# 		if theta >= 360:
-		# 			theta = 0
-		# 			r = r + inc_r
-
-		# 		# if we are at the outer most circle, stop the loop
-		# 		if r > d/2:
-		# 			break
-
-		# 		# convert polar to cartesian
-		# 		x = cx + r * math.cos(math.radians(theta))
-		# 		y = cy + r * math.sin(math.radians(theta))
-
-		# 		points.append((x,y))
-
-		# 		# increase the angle
-		# 		theta = theta + inc_theta
 
 		i=-1
 		# start the loop
@@ -528,11 +500,15 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 
 			# move the head to calculated position
 			move_head(x=x, y=y)
-			time.sleep(10)
+			print(f"Moving to... x:{x}, y:{y}")
+			wait_for_motion_end()
+			# time.sleep(10)
 
 			# move the head down
 			move_head(z=constvals.min_z)
-			time.sleep(20)
+			print(f"Moving to... z:{constvals.min_z}")
+			wait_for_motion_end()
+			# time.sleep(20)
 
 			# signal the arduino to start electroplating
 			if constvals.current_mode:
@@ -578,7 +554,8 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 
 			# move the head up
 			move_head(z=constvals.min_z+2)
-			time.sleep(10)
+			wait_for_motion_end()
+			# time.sleep(10)
 		
 
 		# We are done with the loop
@@ -649,6 +626,36 @@ def get_arduino():
 
 def launch_error():
 	messagebox.showerror(title="ERROR",message="Could not launch 'ECRIT' Application!\n Try configuring your ports on the main menu.")
+
+def clear_printer():
+	constvals.printer.reset_output_buffer()
+	constvals.printer.reset_input_buffer()
+
+def wait_for_motion_end():
+	clear_printer()
+	time.sleep(.1)
+	print("Requesting printer wait...")
+	printer_write("M400")
+	print("Requested printer wait!\n")
+	waiting = False
+	while True:
+		time.sleep(.1)
+		printer_val = constvals.printer.readline()
+		if printer_val:
+			printer_val = printer_val.decode()
+			clear_printer()
+			print(f"repr Printer output: {repr(printer_val)}")
+			if printer_val.__eq__("echo:busy: processing\n"):
+				waiting = True
+			if printer_val.__eq__("ok\n") and waiting == True:
+				print("Completed Motion.")
+				return
+			elif waiting == True:
+				print("NOW WAITING!")
+			else:
+				print("Not done yet!")
+			if printer_val.__eq__("ok\n"):
+				print("SOMEHOW RECIEVED 'ok'")
 
 
 
