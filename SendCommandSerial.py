@@ -567,7 +567,6 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 		print("Ctrl-C detected, quitting")
 		# Stop the electroplating and move the head to travel height
 		move_head(z=constvals.travel_z)
-
 	finally:
 		df = pd.DataFrame(constvals.csvdata)
 		df.to_csv(constvals.csvname, index=False)
@@ -590,7 +589,8 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 		# root.quit()
 		# print("destroyed!")
 
-def halt_experiment():
+def halt_experiment(cancel):
+	cancel.config(state="disabled",bg="#8E5454")
 	arduino_write("f")
 
 # gui

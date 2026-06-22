@@ -248,8 +248,9 @@ def open_experiment_data():
 	time_remaining_label.config(text="Time left: no reading yet")
 	time_remaining_label.grid(row=3, column=0, sticky='w', padx=5, pady=5)
 
-	cancel.config(text="Cancel Experiment",bg="#bc5c5c",command=lambda:halt_experiment())
+	cancel.config(text="Cancel Experiment",bg="#bc5c5c",command=lambda:halt_experiment(cancel))
 	cancel.grid(row=4,column=0,padx=20,pady=5)
+	
 
 	return top
 
