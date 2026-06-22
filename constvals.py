@@ -129,8 +129,8 @@ d = min(max_x - min_x, max_y - min_y)
 inc_theta = 360.0 / points
 
 global arduino,printer
-arduino = serial.Serial(baudrate=115200)
-printer = serial.Serial(baudrate=115200)
+arduino = serial.Serial(baudrate=115200,timeout=0.5,write_timeout=0.5)
+printer = serial.Serial(baudrate=115200,timeout=0.5,write_timeout=0.5)
 
 
 # arduino = serial.Serial(arduino_port, 9600)
@@ -155,45 +155,63 @@ def update_ports():
     # printer_port = "/dev/ttyUSB0"
     printer_port = options["printer_port"]
 
+def find_baudrate(serial_obj):
+    baudrates = [9600,115200]
+    for baud in baudrates:
+        serial_obj.baudrate = baud
+        serial_obj.write(("r\n").encode())
+        serial_output = serial_obj.read()
+        if serial_output != '':
+            print(f"Found baudrate at {baud}!")
+            return
+    Connection_Error("Could not identify the baudrate")
+    
+    
+
 def open_ports():
     global can_start
+    #Sets the port for the arduino and printer serial objs
     arduino.port = arduino_port
     printer.port = printer_port
 
+    #Intialize flag to check if arduino or printer are connected
     arduino_flag = False
     printer_flag = False
-    
+
     try:
         arduino.open()
         printer.open()
         print("Ports are open.")
+        
+        #searches avaiable baudrates and confirms the serial objects are connected to the right baudrates
+        print("Scanning for arduino's baudrate...")
+        find_baudrate(arduino)
+        print("Scanning for printer's baudrate...")
+        find_baudrate(printer)
+
         arduino.write(("r\n").encode()) #Sends reset command to arduino to confirm connection
         print("Sent test byte to arduino...")
         arduino_output = arduino.readline().decode()
-        # print(f"Undecoded: {arduino_output}")
-        # if arduino_output:
-        #     arduino_output = arduino_output.decode()
-        print(f"Output from Arduino: {arduino_output}")
+       
+        # print(f"Output from Arduino: {arduino_output}")
 
         if arduino_output.__eq__("Reset\r\n"):
-            print("Confirmed connection to arduino")
+            print("Confirmed connection to arduino.")
             arduino_flag = True
         else:
-            Connection_Error()
-            raise Exception("Could not establish connection with Arduino")
+            Connection_Error("Could not establish connection with Arduino.")
         # print(f"repr arduino output: '{repr(arduino_output)}'")
+
 
         printer.write(("M300 P100\n").encode())
         print("Sent test byte to printer...")
-        # printer.readline().decode()
         printer_output = printer.readline().decode()
         if printer_output.__eq__("ok\n"):
             print("Confirmed connection to printer")
             printer_flag = True
         else:
-            Connection_Error() #might want to make specific to issue connecting to printer or other device
-            raise Exception("Could not confirm connection to 3D Printer")
-        print(f"repr printer output: '{repr(printer_output)}'")
+            Connection_Error("Could not confirm connection to 3D Printer") #might want to make specific to issue connecting to printer or other device
+        # print(f"repr printer output: '{repr(printer_output)}'")
 
         if arduino_flag == True and printer_flag == True:
             printer.write(("M117 " + "Running ECRIT Application...\n").encode())
@@ -202,12 +220,12 @@ def open_ports():
     except Exception as e:
         print("Could not open ports.")
         print(f"Received Error:{e}")
-        # can_start==True
         can_start = False
         # sys.exit()
 
-def Connection_Error():
+def Connection_Error(exception_msg):
     messagebox.showerror(title="Can't Start Program",message="Could not communicate with connected devices.\nTry swapping the assigned ports for the arduino and printer ports.")
+    raise Exception(exception_msg)
 
 def get_start():
     return can_start
