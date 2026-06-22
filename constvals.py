@@ -129,12 +129,8 @@ d = min(max_x - min_x, max_y - min_y)
 inc_theta = 360.0 / points
 
 global arduino,printer
-arduino = serial.Serial(baudrate=115200,timeout=0.5,write_timeout=0.5)
+arduino = serial.Serial(baudrate=9600,timeout=0.5,write_timeout=0.5)
 printer = serial.Serial(baudrate=115200,timeout=0.5,write_timeout=0.5)
-
-
-# arduino = serial.Serial(arduino_port, 9600)
-# printer = serial.Serial(printer_port, 115200)
 
 csvdata = {
 			'Current':[],
@@ -149,10 +145,8 @@ def update_ports():
     with open("options.json","r") as f:
         options = json.load(f)
     # Arduino serial port
-    # arduino_port = "/dev/ttyACM0"
     arduino_port = options["arduino_port"]
     # Printer serial port
-    # printer_port = "/dev/ttyUSB0"
     printer_port = options["printer_port"]
 
 def find_baudrate(serial_obj):
