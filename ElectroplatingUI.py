@@ -58,6 +58,10 @@ def build_controllerUI():
 	btn_frm.grid_columnconfigure(list(range(0,15)),weight=1)
 	btn_frm.grid_columnconfigure(list(range(0,15)),weight=1)
 	
+	xy_frm = tk.Frame(control_frm,bg="#5F7AB5",padx=20,borderwidth=100,border=5)
+	xy_frm.grid(column=7,row=4,rowspan=4)
+	z_frm = tk.Frame(control_frm,bg="#5F7AB5",padx=20,borderwidth=100,border=5)
+	z_frm.grid(column=8,row=4,rowspan=4,ipady=19)
 
 	# homing function
 	homing = tk.Button(control_frm, text='Home',width=5, command=lambda : head_home()) ; homing.grid(row = 3, column = 0,padx=(0,100))
@@ -82,43 +86,27 @@ def build_controllerUI():
 		i+=1
 
 	#movement functions
-	up = tk.Button(control_frm, text='➚', width=2, command=lambda : move_z(increment.get()))
+	up = tk.Button(z_frm, text='➚', width=2, command=lambda : move_z(increment.get()))
 	up.grid(row=4, column=7, padx=20, pady=5)
-	down = tk.Button(control_frm, text='➘', width=2, command=lambda : move_z(-increment.get()))
+	down = tk.Button(z_frm, text='➘', width=2, command=lambda : move_z(-increment.get()))
 	down.grid(row=6, column=7, padx=20, pady=5)
 
-	# up.config(text="⇬")
-	# down.config(text="")
 
-	# up_arrow = tk.PhotoImage(file="Icons/UpArrow.png")
-	# down_arrow = tk.PhotoImage(file="Icons/DownArrow.png")
-	# left_arrow = tk.PhotoImage(file="Icons/LeftArrow.png")
-	# right_arrow = tk.PhotoImage(file="Icons/RightArrow.png")
-
-	# img_shrinkfactor = 20
-	# up_arrow = up_arrow.subsample(img_shrinkfactor,img_shrinkfactor)
-	# down_arrow = down_arrow.subsample(img_shrinkfactor,img_shrinkfactor)
-	# left_arrow = left_arrow.subsample(img_shrinkfactor,img_shrinkfactor)
-	# right_arrow = right_arrow.subsample(img_shrinkfactor,img_shrinkfactor)
-
-	
-	z_label = ttk.Label(control_frm, text="z-axis", style='TLabel')
+	z_label = ttk.Label(z_frm, text="z-axis", style='TLabel')
 	z_label.grid(row = 7, column = 7, padx=5, pady=5)
-	left = tk.Button(control_frm, text='←', width=2, command=lambda : move_x(-increment.get()))
+	left = tk.Button(xy_frm, text='←', width=2, command=lambda : move_x(-increment.get()))
 	left.grid(row=5, column=3, padx=5, pady=5)
 	# left.config(image=left_arrow)
-	right = tk.Button(control_frm, text='→', width=2, command=lambda : move_x(increment.get()))
+	right = tk.Button(xy_frm, text='→', width=2, command=lambda : move_x(increment.get()))
 	right.grid(row=5, column=5, padx=5, pady=5)
 	# right.config(image=right_arrow)
-	y_label = ttk.Label(control_frm, text="x-axis", style='TLabel')
+	y_label = ttk.Label(xy_frm, text="x-axis", style='TLabel')
 	y_label.grid(row = 5, column = 2, padx=5, pady=5)
-	forward = tk.Button(control_frm, text='↑', width=2, command=lambda : move_y(-increment.get()))
+	forward = tk.Button(xy_frm, text='↑', width=2, command=lambda : move_y(-increment.get()))
 	forward.grid(row=4, column=4, padx=5, pady=5)
-	# forward.config(image=up_arrow)
-	back = tk.Button(control_frm, text='↓', width=2, command=lambda : move_y(increment.get()))
+	back = tk.Button(xy_frm, text='↓', width=2, command=lambda : move_y(increment.get()))
 	back.grid(row=6, column=4, padx=5, pady=5)
-	# back.config(image=down_arrow)
-	x_label = ttk.Label(control_frm, text="y-axis", style='TLabel')
+	x_label = ttk.Label(xy_frm, text="y-axis", style='TLabel')
 	x_label.grid(row = 7, column = 4, padx=5, pady=5)
 	set_center = tk.Button(control_frm, text='⦿', width=2, command=lambda : set_center_position()) #; set_center.grid(row=5, column=4, padx=5, pady=5)
 	move_to_center = tk.Button(control_frm, text='⦿', width=2, command=lambda : move_head_center()) #; move_to_center.grid(row=5, column=4, padx=5, pady=5)
@@ -173,7 +161,6 @@ def open_controller():
 
 def build_param_menu():
 	global input_distance,input_duration,input_current,input_voltage,param_frm
-	# param_root = tk.Tk()
 	#Operational Parameters
 	param_frm = ttk.Frame(m,style='TFrame')
 	param_frm.grid()

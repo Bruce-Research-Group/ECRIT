@@ -37,7 +37,7 @@ PwmOut pwm(V_OUT);
 
 void setup() 
 {
-	Serial.begin(115200);
+	Serial.begin(9600);
 	pinMode(V_OUT, OUTPUT);
 	pinMode(LED_BUILTIN, OUTPUT);
 

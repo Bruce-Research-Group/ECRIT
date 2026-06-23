@@ -12,6 +12,17 @@ for p in ports:
     print(p.device)
 global options,config
 
+#defining option keys
+OPTIONS_PRINTER = "printer_port"
+OPTIONS_ARDUINO = "arduino_port"
+OPTIONS_CSV = "csv_filepath"
+
+def check_options(dictionary):
+    all_options = [OPTIONS_ARDUINO,OPTIONS_CSV,OPTIONS_PRINTER]
+    for opt in all_options:
+        if opt not in dictionary.keys():
+            dictionary.update({opt:""})
+
 # Load configuration from config.json
 with open('config.json', 'r') as f:
     config = json.load(f)
@@ -19,29 +30,32 @@ with open('config.json', 'r') as f:
 try:
     # Load settings from options.json
     with open("options.json","r") as f:
-        options = json.load(f)
+        options = dict(json.load(f))
 except FileNotFoundError as e:
     print(e)
     print("Creating options.json file...")
     with open("options.json","w") as f:
-        placeholder = {"arduino_port":"","printer_port":""}
+        placeholder = {OPTIONS_ARDUINO:"",OPTIONS_PRINTER:"",OPTIONS_CSV:""}
         json.dump(placeholder,f,ensure_ascii=False, indent=4)
     with open("options.json","r") as f:
-        options = json.load(f)
+        options = dict(json.load(f))
     print("Successfully Create!")
+finally:
+    check_options(options)
+
 
 global new_exp
 new_exp = True
 
 
-global arduino_port,printer_port
+global arduino_port,printer_port, csv_filepath
 
-# Arduino serial port
-# arduino_port = "/dev/ttyACM0"
-arduino_port = options["arduino_port"]
-# Printer serial port
-# printer_port = "/dev/ttyUSB0"
-printer_port = options["printer_port"]
+#saving options for future use
+arduino_port = options[OPTIONS_ARDUINO]
+printer_port = options[OPTIONS_PRINTER]
+csv_filepath = options[OPTIONS_CSV]
+print(f"options: {options}")
+print(f"csv file path: {csv_filepath}")
 
 # Matplotlib Graph
 # style.use('fivethirtyeight')
@@ -155,8 +169,11 @@ def find_baudrate(serial_obj):
         serial_obj.baudrate = baud
         serial_obj.write(("r\n").encode())
         serial_output = serial_obj.read()
-        if serial_output != '':
+        # print(f"repr baudrate output: {serial_output}")
+        if serial_output != b'':
             print(f"Found baudrate at {baud}!")
+            serial_obj.reset_output_buffer()
+            serial_obj.reset_input_buffer()
             return
     Connection_Error("Could not identify the baudrate")
     
@@ -167,7 +184,7 @@ def open_ports():
     #Sets the port for the arduino and printer serial objs
     arduino.port = arduino_port
     printer.port = printer_port
-
+    
     #Intialize flag to check if arduino or printer are connected
     arduino_flag = False
     printer_flag = False
@@ -187,7 +204,7 @@ def open_ports():
         print("Sent test byte to arduino...")
         arduino_output = arduino.readline().decode()
        
-        # print(f"Output from Arduino: {arduino_output}")
+        print(f"Output from Arduino: {arduino_output}")
 
         if arduino_output.__eq__("Reset\r\n"):
             print("Confirmed connection to arduino.")

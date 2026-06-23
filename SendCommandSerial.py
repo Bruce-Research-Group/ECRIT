@@ -22,6 +22,7 @@ import initUI
 import SelectPort
 import UtilUI
 import constvals
+from tkinter import filedialog
 
 global x_limit
 
@@ -143,39 +144,9 @@ def assignbasic_vals():
 def confirmports():
 	global arduino_port,printer_port
 	global arduino,printer
-	# connections
-	# try:
-	# 	arduino = serial.Serial(arduino_port, 9600)
-	# 	print("Serial connected to", arduino.name)
-	# 	# arduino.close()
-	# except OSError as e:
-	# 	print(e)
-	# 	UtilUI.tooltip("Could not open arduino port! Please update selected port")
-	# 	initUI.on_quit()
-	# 	initUI.startprogram()
-	# 	arduino_port = options["arduino_port"]
-	# 	printer_port = options["printer_port"]
-	# 	arduino = serial.Serial(arduino_port, 9600)
-	# 	print("Serial connected to", arduino.name)
-		
-
-	# try:
-	# 	printer = serial.Serial(printer_port, 115200)
-	# 	print("Printer connected to", printer.name)
-	# 	# printer.close()
-	# except OSError as e:
-	# 	print(e)
-	# 	print("Could not open printer port! Please update selected port")
-	# 	initUI.on_quit()
-	# 	initUI.startprogram()
-	# 	arduino_port = options["arduino_port"]
-	# 	printer_port = options["printer_port"]
-	# 	printer = serial.Serial(printer_port, 9600)
-	# 	print("Printer connected to", printer.name)
+	
 	constvals.open_ports()
-
-		
-		
+	
 	time.sleep(5)
 
 # function definitions
@@ -414,23 +385,36 @@ def get_points_coords():
 def download_data():
 	# global csvname
 	# Determine the default download folder based on the operating system
-	if platform.system() == 'Windows':
-			download_folder = os.path.join(os.environ['USERPROFILE'], 'Downloads')
-	else:
-			download_folder = os.path.join(os.environ['HOME'], 'Downloads')
+	# if platform.system() == 'Windows':
+	# 		download_folder = os.path.join(os.environ['USERPROFILE'], 'Downloads')
+	# else:
+	# 		download_folder = os.path.join(os.environ['HOME'], 'Downloads')
 
-	# Define the full path to save the file in the Downloads folder
-	destination_path = os.path.join(download_folder, os.path.basename(constvals.csvname))
+	# # Define the full path to save the file in the Downloads folder
+	# destination_path = os.path.join(download_folder, os.path.basename(constvals.csvname))
+	
+	destination_path = constvals.csv_filepath
+	print(destination_path)
+	keep_location = True
+	if destination_path == "":
+		keep_location = False
+	else:
+		try:
+			keep_location = messagebox.askyesno(title="Save File",message=f"Download file to {destination_path}?")
+		except:
+			print("didn't work")
+			keep_location = False
+	if keep_location == False:
+		destination_path = filedialog.asksaveasfilename(initialdir=("C:/"+constvals.csvname),defaultextension="*.csv",filetypes=[("CSV files", "*.csv")])
+		
 
 	# Copy the CSV file to the Downloads folder
 	shutil.copy(constvals.csvname, destination_path)
 	messagebox.showinfo(title="File Saved!",message=f"File downloaded to {destination_path}")
 	print(f"File downloaded to {destination_path}")
+	update_options(constvals.OPTIONS_CSV,destination_path)
 	
 def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,vol_list,time_list,top,root,param_frm):
-	# global vol, tar_vol, cur, timestamp, filename, csvname,csvdata
-	# for w in param_frm.winfo_children():
-	# 		w.configure(state="disabled")
 	try:
 		
 
@@ -638,25 +622,40 @@ def wait_for_motion_end():
 	printer_write("M400")
 	print("Requested printer wait!\n")
 	waiting = False
+	counter = 0
 	while True:
+		counter +=1
 		time.sleep(.1)
+		# print(counter)
 		printer_val = constvals.printer.readline()
 		if printer_val:
 			printer_val = printer_val.decode()
 			clear_printer()
-			print(f"repr Printer output: {repr(printer_val)}")
+			# print(f"repr Printer output: {repr(printer_val)}")
 			if printer_val.__eq__("echo:busy: processing\n"):
 				waiting = True
 			if printer_val.__eq__("ok\n") and waiting == True:
 				print("Completed Motion.")
 				return
 			elif waiting == True:
-				print("NOW WAITING!")
+				# print("NOW WAITING!")
+				pass
 			else:
 				print("Not done yet!")
 			if printer_val.__eq__("ok\n"):
-				print("SOMEHOW RECIEVED 'ok'")
+				# print("SOMEHOW RECIEVED 'ok'")
+				pass
+		if counter >= 10 and waiting==False:
+			print("Assume Completed Motion.")
+			return
+			# print(counter)
 
+def update_options(option, newval):
+	with open("options.json","r") as f:
+		options = dict(json.load(f))
+	options.update({option:newval}) 
+	with open("options.json","w") as f:
+		json.dump(options,f,ensure_ascii=False, indent=4)
 
 
 def main():
@@ -675,18 +674,17 @@ def main():
 	print("confirming ports...")
 	confirmports() 
 	print(f"Arduino Port is {constvals.arduino_port}\nPrinter Port is {constvals.printer_port}")
-	# print(x_limit)
 
-	# while constvals.new_exp:
-	# 	constvals.new_exp = False
+
 	#Launches Main Application Window
 	if constvals.get_start():
-		print("Launching Application...")
+		print("\n\n\nLaunching Application...")
 		buildMainUI()
 	else:
 		print("Could not launch application.")
 		launch_error()
 
 if (__name__ == "__main__"):
-	main()
-	# buildUI()
+	# main()
+	constvals.get_start()
+	download_data()
