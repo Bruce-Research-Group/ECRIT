@@ -8,8 +8,8 @@ from tkinter import messagebox
 ports = serial.tools.list_ports.comports()
 global can_start
 can_start = False
-for p in ports:
-    print(p.device)
+# for p in ports:
+#     print(p.device)
 global options,config
 
 #defining option keys
@@ -54,8 +54,8 @@ global arduino_port,printer_port, csv_filepath
 arduino_port = options[OPTIONS_ARDUINO]
 printer_port = options[OPTIONS_PRINTER]
 csv_filepath = options[OPTIONS_CSV]
-print(f"options: {options}")
-print(f"csv file path: {csv_filepath}")
+# print(f"options: {options}")
+# print(f"csv file path: {csv_filepath}")
 
 # Matplotlib Graph
 # style.use('fivethirtyeight')
@@ -154,14 +154,16 @@ csvdata = {
 			'Time Accumulative':[]
 		}
 
-def update_ports():
-    global arduino_port,printer_port
+def update_options():
+    global arduino_port,printer_port,csv_filepath
     with open("options.json","r") as f:
         options = json.load(f)
     # Arduino serial port
-    arduino_port = options["arduino_port"]
+    arduino_port = options[OPTIONS_ARDUINO]
     # Printer serial port
-    printer_port = options["printer_port"]
+    printer_port = options[OPTIONS_PRINTER]
+
+    csv_filepath = options[OPTIONS_CSV]
 
 def find_baudrate(serial_obj):
     baudrates = [9600,115200]
@@ -199,6 +201,7 @@ def open_ports():
         find_baudrate(arduino)
         print("Scanning for printer's baudrate...")
         find_baudrate(printer)
+        print()
 
         arduino.write(("r\n").encode()) #Sends reset command to arduino to confirm connection
         print("Sent test byte to arduino...")
@@ -212,6 +215,7 @@ def open_ports():
         else:
             Connection_Error("Could not establish connection with Arduino.")
         # print(f"repr arduino output: '{repr(arduino_output)}'")
+        print()
 
 
         printer.write(("M300 P100\n").encode())
@@ -223,6 +227,7 @@ def open_ports():
         else:
             Connection_Error("Could not confirm connection to 3D Printer") #might want to make specific to issue connecting to printer or other device
         # print(f"repr printer output: '{repr(printer_output)}'")
+        print()
 
         if arduino_flag == True and printer_flag == True:
             printer.write(("M117 " + "Running ECRIT Application...\n").encode())

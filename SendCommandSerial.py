@@ -382,6 +382,25 @@ def animate(i):
 def get_points_coords():
 	return constvals.points_coordinates
 
+#Removes filename from directory
+def remove_filename(directory):
+	slash_char = -1
+	lst_dir = list(directory)
+	# print(f"lst_dir len is {len(lst_dir)}")
+	for char in range(len(lst_dir)-1,0,-1):
+		# print(f"Char is {lst_dir[char]}")
+		if lst_dir[char] == "/":
+			# print("Char found!")
+			slash_char = char
+			break
+	if slash_char == -1:
+		return
+	new_direct = ""
+	for char in range(0,slash_char+1):
+		new_direct += lst_dir[char]
+	return new_direct
+
+
 def download_data():
 	# global csvname
 	# Determine the default download folder based on the operating system
@@ -393,26 +412,32 @@ def download_data():
 	# # Define the full path to save the file in the Downloads folder
 	# destination_path = os.path.join(download_folder, os.path.basename(constvals.csvname))
 	
+	constvals.update_options()
 	destination_path = constvals.csv_filepath
+	csvfilename = "log_"+constvals.timestamp
 	print(destination_path)
 	keep_location = True
 	if destination_path == "":
 		keep_location = False
 	else:
 		try:
-			keep_location = messagebox.askyesno(title="Save File",message=f"Download file to {destination_path}?")
+			keep_location = messagebox.askyesno(title="Save File",message=f"Download file to {destination_path}{csvfilename}")
 		except:
 			print("didn't work")
 			keep_location = False
 	if keep_location == False:
-		destination_path = filedialog.asksaveasfilename(initialdir=("C:/"+constvals.csvname),defaultextension="*.csv",filetypes=[("CSV files", "*.csv")])
+		destination_path = filedialog.asksaveasfilename(initialfile=constvals.csvname,initialdir=(csvfilename),defaultextension="*.csv",filetypes=[("CSV files", "*.csv")])
 		
 
 	# Copy the CSV file to the Downloads folder
-	shutil.copy(constvals.csvname, destination_path)
-	messagebox.showinfo(title="File Saved!",message=f"File downloaded to {destination_path}")
-	print(f"File downloaded to {destination_path}")
-	update_options(constvals.OPTIONS_CSV,destination_path)
+	try:
+		shutil.copy(constvals.csvname, destination_path)
+		messagebox.showinfo(title="File Saved!",message=f"File downloaded to {destination_path}")
+		print(f"File downloaded to {destination_path}")
+		update_options(constvals.OPTIONS_CSV,remove_filename(destination_path))
+	except:
+		print("Could not find file location. Please try again.")
+		download_data()
 	
 def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,vol_list,time_list,top,root,param_frm):
 	try:
@@ -508,6 +533,9 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 			while time.time() - start < constvals.duration: # loop until time has reached the set duration
 				l = constvals.arduino.readline().decode().strip()
 				print(l)
+				if l == "Turn off":
+					print("Halting Experiment...")
+					return
 				if (not l or "," not in l):
 					continue
 				f.write(l + "," + str(time.time()-start) + "\n")
@@ -685,6 +713,7 @@ def main():
 		launch_error()
 
 if (__name__ == "__main__"):
-	# main()
-	constvals.get_start()
-	download_data()
+	main()
+	# constvals.get_start()
+	# download_data()
+	# print(remove_filename("C:/Users/Abaoy/Downloads/log_20260624-131337.csv"))

@@ -50,7 +50,7 @@ def confirmport(frm):
     }
     with open("options.json","w") as opt_file:
         json.dump(ports,opt_file,ensure_ascii=False, indent=4)
-    constvals.update_ports()
+    constvals.update_options()
     print("destroying mainloop...")
     frm.destroy()
     print("mainloop destroyed!")
