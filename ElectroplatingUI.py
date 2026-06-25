@@ -58,10 +58,10 @@ def build_controllerUI():
 	btn_frm.grid_columnconfigure(list(range(0,15)),weight=1)
 	btn_frm.grid_columnconfigure(list(range(0,15)),weight=1)
 	
-	xy_frm = tk.Frame(control_frm,bg="#5F7AB5",padx=20,borderwidth=100,border=5)
-	xy_frm.grid(column=7,row=4,rowspan=4)
-	z_frm = tk.Frame(control_frm,bg="#5F7AB5",padx=20,borderwidth=100,border=5)
-	z_frm.grid(column=8,row=4,rowspan=4,ipady=19)
+	xy_frm = tk.Frame(control_frm,bg="#4C5E85",padx=20,borderwidth=100,border=5,relief="ridge")
+	xy_frm.grid(column=7,row=4,rowspan=20,ipady=2)
+	z_frm = tk.Frame(control_frm,bg="#4C5E85",padx=20,borderwidth=100,border=5,relief="ridge")
+	z_frm.grid(column=8,row=4,rowspan=20,ipady=20)
 
 	# homing function
 	homing = tk.Button(control_frm, text='Home',width=5, command=lambda : head_home()) ; homing.grid(row = 3, column = 0,padx=(0,100))
@@ -90,10 +90,10 @@ def build_controllerUI():
 	up.grid(row=4, column=7, padx=20, pady=5)
 	down = tk.Button(z_frm, text='➘', width=2, command=lambda : move_z(-increment.get()))
 	down.grid(row=6, column=7, padx=20, pady=5)
-
-
 	z_label = ttk.Label(z_frm, text="z-axis", style='TLabel')
-	z_label.grid(row = 7, column = 7, padx=5, pady=5)
+	z_label.grid(row = 7, column = 7, padx=5, pady=5,sticky="S")
+
+
 	left = tk.Button(xy_frm, text='←', width=2, command=lambda : move_x(-increment.get()))
 	left.grid(row=5, column=3, padx=5, pady=5)
 	# left.config(image=left_arrow)
