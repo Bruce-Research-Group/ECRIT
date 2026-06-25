@@ -163,13 +163,17 @@ void setup() {
 
 	Serial_Pi.println("Serial PSU Controller");
 
-	char idn[64];
-	if (getSerialNumber(idn, sizeof(idn))) {
-		Serial_Pi.print("Device: ");
-		Serial_Pi.println(idn);
-	} else {
-		Serial_Pi.println("Device query failed");
-		while (1) {}
+	while (true)
+	{
+		char idn[64];
+		if (getSerialNumber(idn, sizeof(idn))) {
+			Serial_Pi.print("Device: ");
+			Serial_Pi.println(idn);
+			break;
+		} else {
+			Serial_Pi.println("Device query failed, try again in 5s");
+			delay(5000);
+		}
 	}
 
 	setOverCurrentProtection(false);
