@@ -17,6 +17,12 @@ OPTIONS_PRINTER = "printer_port"
 OPTIONS_ARDUINO = "arduino_port"
 OPTIONS_CSV = "csv_filepath"
 
+DATA_CURRENT = "Current"
+DATA_TARGET_VOLTAGE = "Target Voltage"
+DATA_ACTUAL_VOLTAGE = "Actual Voltage"
+DATA_IND_TIME = "Time Individual"
+DATA_TOTAL_TIME = "Time Accumulative"
+
 def check_options(dictionary):
     all_options = [OPTIONS_ARDUINO,OPTIONS_CSV,OPTIONS_PRINTER]
     for opt in all_options:

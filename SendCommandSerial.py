@@ -22,6 +22,7 @@ import initUI
 import SelectPort
 import UtilUI
 import constvals
+import Graphing
 from tkinter import filedialog
 
 global x_limit
@@ -453,11 +454,11 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 
 		# log file, csv file
 		csvdata = {
-			'Current':[],
-			'Target Voltage':[],
-			'Actual Voltage':[],
-			'Time Individual':[],
-			'Time Accumulative':[]
+			constvals.DATA_CURRENT:[],
+			constvals.DATA_TARGET_VOLTAGE:[],
+			constvals.DATA_ACTUAL_VOLTAGE:[],
+			constvals.DATA_IND_TIME:[],
+			constvals.DATA_TOTAL_TIME:[]
 		}
 		
 		constvals.timestamp = time.strftime("%Y%m%d-%H%M%S")
@@ -557,6 +558,8 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 				time_list.append(float(time.time()-start))
 				time_remaining_label.config(text=f"time left: {int(constvals.duration+start-time.time())}")
 
+
+
 			# signal the arduino to stop electroplating
 			arduino_write("f")
 			readSerial()
@@ -590,6 +593,7 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 		#arduino.close()
 		#printer.close()
 		f.close()
+		Graphing.DispGraph(csvdata)
 		# for w in param_frm.winfo_children():
 		# 	w.configure(state="normal")
 		# if constvals.current_mode:
