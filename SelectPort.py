@@ -21,9 +21,10 @@ def selectport(root):
         port_list.append(i.device)
 
     #Dropdown menu
-    global arduino_option,printer_option
+    global arduino_option,printer_option,options_dict
     with open("options.json","r") as f:
         options = json.load(f)
+    options_dict = dict(options)
     arduino_option = StringVar()
     printer_option = StringVar()
     arduino_option.set(options["arduino_port"])
@@ -44,12 +45,11 @@ def confirmport(frm):
     if arduino_option.get() == printer_option.get():
         UtilUI.tooltip("Arduino Port and Printer Port can NOT be the same",autoclose=True,close_time=2)
         return
-    ports = {
-        "arduino_port":arduino_option.get(),
-        "printer_port":printer_option.get()
-    }
+    options_dict.update({"arduino_port":arduino_option.get()})
+    options_dict.update({"printer_port":printer_option.get()})
+
     with open("options.json","w") as opt_file:
-        json.dump(ports,opt_file,ensure_ascii=False, indent=4)
+        json.dump(options_dict,opt_file,ensure_ascii=False, indent=4)
     constvals.update_options()
     print("destroying mainloop...")
     frm.destroy()

@@ -28,6 +28,8 @@ def check_options(dictionary):
     for opt in all_options:
         if opt not in dictionary.keys():
             dictionary.update({opt:""})
+    with open("options.json","w") as f:
+        json.dump(dictionary,f,ensure_ascii=False, indent=4)
 
 # Load configuration from config.json
 with open('config.json', 'r') as f:

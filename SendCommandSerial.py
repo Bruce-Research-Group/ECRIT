@@ -593,7 +593,7 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 		#arduino.close()
 		#printer.close()
 		f.close()
-		Graphing.DispGraph(csvdata)
+		Graphing.DispGraph(constvals.csvdata)
 		# for w in param_frm.winfo_children():
 		# 	w.configure(state="normal")
 		# if constvals.current_mode:

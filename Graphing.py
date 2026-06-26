@@ -5,16 +5,20 @@ import constvals
 # dictionary = dict(str,list)
 # val_name = str #String to select list from dictionary
 def DispGraph(dictionary):
-    val_names = [constvals.DATA_CURRENT,constvals.DATA_TARGET_VOLTAGE,constvals.DATA_ACTUAL_VOLTAGE]
-
+    dictionary[constvals.DATA_IND_TIME].pop(0)
+    dictionary[constvals.DATA_CURRENT].pop(0)
+    dictionary[constvals.DATA_ACTUAL_VOLTAGE].pop(0)
+    val_names = [constvals.DATA_CURRENT,constvals.DATA_ACTUAL_VOLTAGE]
+    # Labels graph title
+    plt.title("Plot of Voltage (V) and Current (mA) vs. Time (s)")
+    
     for val_name in val_names:
-    # Gets data array from dictionary
+        # Gets data array from dictionary
         exp_values= dictionary[str(val_name)]
 
-        # Labels graph title
-        plt.title(str(val_name)+" vs. Time (s)")
-
         # Loads data array and plots on the graph
+        print(f"DATA_IND_TIME: {constvals.DATA_IND_TIME}")
+        print(f"Time list: {dictionary[constvals.DATA_IND_TIME]}")
         x = np.array(range(0,len(dictionary[constvals.DATA_IND_TIME])))
         y= np.array(exp_values) 
         func, = plt.plot(x,y,"o")
