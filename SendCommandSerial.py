@@ -482,7 +482,7 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 		
 		wait_for_motion_end()
 		# time.sleep(40)
-
+		print(f"min_z = {constvals.min_z}")
 		# move the head to the right height
 		move_head(z=constvals.min_z+2)
 		show_state("To starting height")
@@ -601,7 +601,16 @@ def halt_experiment(cancel):
 
 # Sends printer head to predefined start point to make positioning for electrodeposition easier
 def ExperimentStartPoint():
-	...
+	# printer_write("G90")
+	move_head(z=120)
+	move_head(x=130,y=140)
+	move_head(z=60)
+	# # printer_write("G0 Z120")
+	# # wait_for_motion_end()
+	# printer_write("G0 X130 Y140")
+	# # wait_for_motion_end()
+	# printer_write("G0 Z60")
+	# # wait_for_motion_end()
 
 # gui
 def buildMainUI():

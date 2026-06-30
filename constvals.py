@@ -151,8 +151,8 @@ d = min(max_x - min_x, max_y - min_y)
 inc_theta = 360.0 / points
 
 global arduino,printer
-arduino = serial.Serial(baudrate=9600,timeout=0.5,write_timeout=0.5)
-printer = serial.Serial(baudrate=115200,timeout=0.5,write_timeout=0.5)
+arduino = serial.Serial(baudrate=9600,timeout=0.1,write_timeout=0.1)
+printer = serial.Serial(baudrate=115200,timeout=0.1,write_timeout=0.1)
 
 csvdata = {
 			'Current':[],
@@ -243,7 +243,7 @@ def open_ports():
 
     except Exception as e:
         print("Could not open ports.")
-        print(f"Received Error:{e}")
+        print(f"Received Error: {e}")
         can_start = False
         # sys.exit()
 
