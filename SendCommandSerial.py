@@ -588,26 +588,20 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 		arduino_write("f")
 		show_state("Done")
 		download_data()
-		# constvals.points_coordinates.clear()
 		top.destroy()
-		#arduino.close()
-		#printer.close()
 		f.close()
-		Graphing.DispGraph(constvals.csvdata)
-		# for w in param_frm.winfo_children():
-		# 	w.configure(state="normal")
-		# if constvals.current_mode:
 
-		# print("Experiment complete!")
-		# constvals.new_exp = messagebox.askyesno(title="New Experiment?",message="Start New Experiment?")
-		# print("destroying...")
-		# root.destroy()
-		# root.quit()
-		# print("destroyed!")
+		# Graphing.DispGraph(constvals.csvdata) # Pops up with a graph comparing current and voltage to time 
+		
 
 def halt_experiment(cancel):
 	cancel.config(state="disabled",bg="#8E5454")
 	arduino_write("f")
+
+
+# Sends printer head to predefined start point to make positioning for electrodeposition easier
+def ExperimentStartPoint():
+	...
 
 # gui
 def buildMainUI():

@@ -132,6 +132,8 @@ def build_controllerUI():
 		set_point1.config(fg="black")
 		undo_point.config(state="normal")
 		points_label.config(text=f"{len(get_points_coords())} points set")
+	
+	exp_startpoint = tk.Button(btn_frm,text="Go To Start Point", width=20,) #probably want to change text
 	# print(m.winfo_geometry())
 	
 	# get_win_size = tk.Button(btn_frm,text="get win dimensions",command=lambda:get_minsize(m)) ; get_win_size.grid(row=10, column=1, padx=5, pady=5)
