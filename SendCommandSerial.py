@@ -401,7 +401,6 @@ def remove_filename(directory):
 		new_direct += lst_dir[char]
 	return new_direct
 
-
 def download_data():
 	# global csvname
 	# Determine the default download folder based on the operating system
@@ -422,22 +421,25 @@ def download_data():
 		keep_location = False
 	else:
 		try:
-			keep_location = messagebox.askyesno(title="Save File",message=f"Download file to {destination_path}{csvfilename}")
+			keep_location = messagebox.askyesno(title="Save File",message=f"Download file to {destination_path}{csvfilename}.csv")
 		except:
 			print("didn't work")
 			keep_location = False
 	if keep_location == False:
 		destination_path = filedialog.asksaveasfilename(initialfile=constvals.csvname,initialdir=(csvfilename),defaultextension="*.csv",filetypes=[("CSV files", "*.csv")])
-		
+	
+	clean_destination = remove_filename(destination_path)
 
 	# Copy the CSV file to the Downloads folder
 	try:
-		shutil.copy(constvals.csvname, destination_path)
+		shutil.move(constvals.csvname, destination_path)
+		shutil.move(constvals.filename,destination_path+constvals.filename)
 		messagebox.showinfo(title="File Saved!",message=f"File downloaded to {destination_path}")
 		print(f"File downloaded to {destination_path}")
-		update_options(constvals.OPTIONS_CSV,remove_filename(destination_path))
-	except:
+		update_options(constvals.OPTIONS_CSV,clean_destination)
+	except Exception as e:
 		print("Could not find file location. Please try again.")
+		print(f"Recieved exception: {e}")
 		download_data()
 	
 def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,vol_list,time_list,top,root,param_frm):
@@ -587,17 +589,15 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 		df.to_csv(constvals.csvname, index=False)
 		arduino_write("f")
 		show_state("Done")
-		download_data()
 		top.destroy()
 		f.close()
+		download_data()
 
-		# Graphing.DispGraph(constvals.csvdata) # Pops up with a graph comparing current and voltage to time 
-		
+		# Graphing.DispGraph(constvals.csvdata) # Pops up with a graph comparing current and voltage to time 	
 
 def halt_experiment(cancel):
 	cancel.config(state="disabled",bg="#8E5454")
 	arduino_write("f")
-
 
 # Sends printer head to predefined start point to make positioning for electrodeposition easier
 def ExperimentStartPoint():
@@ -616,7 +616,6 @@ def ExperimentStartPoint():
 def buildMainUI():
 	UtilUI.startmainUI()
 ###
-
 def get_config_val(val_name):
 	with open('config.json', 'r') as f:
 		config = json.load(f)
@@ -693,8 +692,13 @@ def update_options(option, newval):
 		json.dump(options,f,ensure_ascii=False, indent=4)
 
 
+
+
 def main():
-	#Basic Startup
+	# Initializes the constvals file and variable
+	constvals.get_start()
+
+	# Basic Startup
 	print("starting program...")
 	initUI.startprogram()
 	if initUI.start_flag == False:

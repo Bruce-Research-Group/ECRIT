@@ -244,6 +244,7 @@ def open_ports():
     except Exception as e:
         print("Could not open ports.")
         print(f"Received Error: {e}")
+        print("Also check that PSU is turned on.")
         can_start = False
         # sys.exit()
 
