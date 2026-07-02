@@ -4,8 +4,9 @@ import serial
 import serial.tools.list_ports
 from tkinter import messagebox
 
-
+global ports
 ports = serial.tools.list_ports.comports()
+
 global can_start
 can_start = False
 # for p in ports:
@@ -31,6 +32,7 @@ def check_options(dictionary):
     with open("options.json","w") as f:
         json.dump(dictionary,f,ensure_ascii=False, indent=4)
 
+
 # Load configuration from config.json
 with open('config.json', 'r') as f:
     config = json.load(f)
@@ -51,17 +53,87 @@ except FileNotFoundError as e:
 finally:
     check_options(options)
 
-
-global new_exp
-new_exp = True
-
-
 global arduino_port,printer_port, csv_filepath
 
 #saving options for future use
 arduino_port = options[OPTIONS_ARDUINO]
 printer_port = options[OPTIONS_PRINTER]
 csv_filepath = options[OPTIONS_CSV]
+
+arduino_port = None
+printer_port = None
+
+def Clear_SerialStream(serial_obj):
+    serial_obj.reset_output_buffer()
+    serial_obj.reset_input_buffer()
+
+def attempt_auto_connect():
+    global arduino_port,printer_port
+    for port in ports:
+        if arduino_port != None and printer_port!= None:
+            return
+        port = port.name
+        for baud in serial.Serial.BAUDRATES:
+            if baud < 9600 or baud > 250000:
+                continue
+            try:
+                test_ser = serial.Serial(port,baud,timeout=0.1,write_timeout=0.1)
+                if test_ser.is_open == False:
+                    test_ser.open()
+                else:
+                    Clear_SerialStream(test_ser)
+                    test_ser.close()
+                    test_ser.open()
+                if arduino_port == None:
+                    # Add to check if arduino is waiting to connect to the PSU and tell the user to turn it on and restart the program
+                    test_ser.write(("r\n").encode())
+                    output = test_ser.readline().decode()
+                    if output == "":
+                        continue
+                    print(f"Output from port: {port}\nAt baudrate: {baud}\nArduino Output: {output}")
+                    if output.__eq__("Reset\r\n"):
+                        arduino_port = port
+                        Clear_SerialStream(test_ser)
+                        test_ser.close()
+                        print("Made Connection to Arduino!")
+                        break
+                if printer_port == None:
+                    test_ser.write(("M300 P100\r\n").encode())
+                    output = test_ser.readline().decode()
+                    if output == "":
+                        continue
+                    print(f"Output from port: {port}\nAt baudrate: {baud}\nPrinter Output: {output}")
+                    if output.__eq__("ok\n"):
+                        printer_port = port
+                        Clear_SerialStream(test_ser)
+                        test_ser.close()
+                        print("Made Connection to 3D Printer!")
+                        break
+                test_ser.close()
+
+
+            except serial.SerialException as e:
+                print(f"Found no device on port: {port} at baudrate: {baud}")
+                print(f"Exception: {e}")
+                continue
+            except Exception as e:
+                print(f"Received Exception on port: {port} at baudrate: {baud}")
+                print(f"Exception: {e}")
+                continue
+            finally:
+                test_ser.close()
+            # check port for connection
+            # Have selectport compare arduino and printer port to show user when selecting ports
+            # if arduino and printer are found then return
+
+
+
+
+global new_exp
+new_exp = True
+
+
+
 # print(f"options: {options}")
 # print(f"csv file path: {csv_filepath}")
 
@@ -258,3 +330,6 @@ def get_start():
 def are_open():
     
     return (arduino.is_open == True and printer.is_open==True)
+
+if __name__ == "__main__":
+    attempt_auto_connect()
