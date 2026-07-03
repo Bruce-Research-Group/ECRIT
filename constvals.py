@@ -60,8 +60,8 @@ arduino_port = options[OPTIONS_ARDUINO]
 printer_port = options[OPTIONS_PRINTER]
 csv_filepath = options[OPTIONS_CSV]
 
-arduino_port = None
-printer_port = None
+# arduino_port = None
+# printer_port = None
 
 def Clear_SerialStream(serial_obj):
     serial_obj.reset_output_buffer()
@@ -97,6 +97,8 @@ def attempt_auto_connect():
                         test_ser.close()
                         print("Made Connection to Arduino!")
                         break
+                    if output.__eq__("PSU not Connected\r\n"):
+                        Connection_Error("Ensure Power Supply is turned on and connected to the Arduino.")
                 if printer_port == None:
                     test_ser.write(("M300 P100\r\n").encode())
                     output = test_ser.readline().decode()

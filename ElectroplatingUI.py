@@ -32,7 +32,7 @@ def buildUI():
 	global cur,vol,tar_vol,vol_list,time_list
 	# values
 	cur = "Current: no reading yet"
-	vol = "Actual Voltage: no reading yet"
+	vol = "Output Voltage: no reading yet"
 	tar_vol = "Target Voltage: no reading yet"
 	vol_list = []
 	time_list = []

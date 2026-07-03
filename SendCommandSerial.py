@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import tempfile
 import time
 import serial
 import serial.tools.list_ports
@@ -429,19 +430,24 @@ def download_data():
 		destination_path = filedialog.asksaveasfilename(initialfile=constvals.csvname,initialdir=(csvfilename),defaultextension="*.csv",filetypes=[("CSV files", "*.csv")])
 	
 	clean_destination = remove_filename(destination_path)
-
+	tmp_dir = tempfile.gettempdir()
 	# Copy the CSV file to the Downloads folder
 	try:
-		shutil.move(constvals.csvname, destination_path)
-		shutil.move(constvals.filename,destination_path+constvals.filename)
-		messagebox.showinfo(title="File Saved!",message=f"File downloaded to {destination_path}")
-		print(f"File downloaded to {destination_path}")
-		update_options(constvals.OPTIONS_CSV,clean_destination)
+		try:
+			file = open(os.path.join(destination_path,constvals.csvname),"r")
+			file.close()
+		except Exception as e:
+			print(f"Receive expected exception: {e}")
+			shutil.move(os.path.join(tmp_dir,constvals.csvname), destination_path)
+			shutil.move(os.path.join(tmp_dir,constvals.filename),os.path.join(clean_destination,constvals.filename))
+			messagebox.showinfo(title="File Saved!",message=f"File downloaded to {destination_path}")
+			print(f"File downloaded to {destination_path}")
+			update_options(constvals.OPTIONS_CSV,clean_destination)
 	except Exception as e:
 		print("Could not find file location. Please try again.")
 		print(f"Recieved exception: {e}")
 		download_data()
-	
+
 def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,vol_list,time_list,top,root,param_frm):
 	try:
 		
@@ -466,17 +472,21 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 		constvals.timestamp = time.strftime("%Y%m%d-%H%M%S")
 		constvals.filename = "log_" + constvals.timestamp + ".txt"
 		constvals.csvname = "log_" + constvals.timestamp + ".csv"
-		f = open(constvals.filename, "w")
-		f.write("Staring Time " + str(time.time()) + "\n")
+		# f = open(constvals.filename, "w")
+		print("Created tmp file!")
+		# f = tempfile.TemporaryFile(delete_on_close=False)
+		f = open(os.path.join(tempfile.gettempdir(),constvals.filename), "w")
+		
+		f.write(("Staring Time " + str(time.time()) + "\n"))
 		# log settings
-		f.write("current_mode " + str(constvals.current_mode) + "\n")
-		f.write("target_current " + str(constvals.target_current) + "\n")
-		f.write("target_voltage " + str(constvals.target_voltage) + "\n")
-		f.write("duration " + str(constvals.duration) + "s\n")
-		f.write("diff_z " + str(constvals.diff_z) + "mm\n")
-		f.write("points " + str(len(constvals.points_coordinates)) + "\n")
-		f.write("inc_r " + str(constvals.inc_r) + "mm\n")
-		f.write("====================================\n")
+		f.write(("current_mode " + str(constvals.current_mode) + "\n"))
+		f.write(("target_current " + str(constvals.target_current) + "\n"))
+		f.write(("target_voltage " + str(constvals.target_voltage) + "\n"))
+		f.write(("duration " + str(constvals.duration) + "s\n"))
+		f.write(("diff_z " + str(constvals.diff_z) + "mm\n"))
+		f.write(("points " + str(len(constvals.points_coordinates)) + "\n"))
+		f.write(("inc_r " + str(constvals.inc_r) + "mm\n"))
+		f.write(("====================================\n"))
 
 		# move the head to the travel height
 		move_head(z=constvals.travel_z)
@@ -507,7 +517,7 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 
 			# log the point
 			point_str = "x: " + "{:.3f}".format(x) + ", y: " + "{:.3f}".format(y)
-			f.write("\n" + point_str + "\n")
+			f.write(("\n" + point_str + "\n"))
 			show_state(point_str)
 
 			# move the head to calculated position
@@ -541,7 +551,7 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 					return
 				if (not l or "," not in l):
 					continue
-				f.write(l + "," + str(time.time()-start) + "\n")
+				f.write((l + "," + str(time.time()-start) + "\n"))
 				values = l.split(',')
 				if (len(values) < 3):
 					continue
@@ -574,7 +584,6 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 			wait_for_motion_end()
 			# time.sleep(10)
 		
-
 		# We are done with the loop
 		move_head(z=constvals.travel_z)
 		# play_sound()
@@ -584,9 +593,15 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 		print("Ctrl-C detected, quitting")
 		# Stop the electroplating and move the head to travel height
 		move_head(z=constvals.travel_z)
+	except Exception as e:
+		print(f"Received Exception: {e}")
 	finally:
 		df = pd.DataFrame(constvals.csvdata)
-		df.to_csv(constvals.csvname, index=False)
+		print("Creating tmp csv file")
+		c = open(os.path.join(tempfile.gettempdir(),constvals.csvname),"x")
+		c.close()
+		print("Closed tmp file")
+		df.to_csv(os.path.join(tempfile.gettempdir(),constvals.csvname), index=False)
 		arduino_write("f")
 		show_state("Done")
 		top.destroy()
@@ -654,7 +669,7 @@ def wait_for_motion_end():
 	time.sleep(.1)
 	print("Requesting printer wait...")
 	printer_write("M400")
-	print("Requested printer wait!\n")
+	print("Requested printer wait!")
 	waiting = False
 	counter = 0
 	while True:
@@ -669,7 +684,7 @@ def wait_for_motion_end():
 			if printer_val.__eq__("echo:busy: processing\n"):
 				waiting = True
 			if printer_val.__eq__("ok\n") and waiting == True:
-				print("Completed Motion.")
+				print("Completed Motion.\n")
 				return
 			elif waiting == True:
 				# print("NOW WAITING!")
@@ -680,7 +695,7 @@ def wait_for_motion_end():
 				# print("SOMEHOW RECIEVED 'ok'")
 				pass
 		if counter >= 10 and waiting==False:
-			print("Assume Completed Motion.")
+			print("Assume Completed Motion.\n")
 			return
 			# print(counter)
 
@@ -725,6 +740,10 @@ def main():
 
 if (__name__ == "__main__"):
 	main()
+	# tmp_dir = tempfile.gettempdir()
+	# new_tmp = os.path.join(tmp_dir,"log_2415362784_scbj.csv")
+	# print(new_tmp)
+	# main()
 	# constvals.get_start()
 	# download_data()
 	# print(remove_filename("C:/Users/Abaoy/Downloads/log_20260624-131337.csv"))

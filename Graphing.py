@@ -42,7 +42,9 @@ def DispGraph(dictionary):
         
 
         # plots line of best fit onto the graph
-        ax.plot(np.unique(x), np.poly1d(np.polyfit(x, y, 1))(np.unique(x)))
+        # ax.plot(np.unique(x), np.poly1d(np.polyfit(x, y, 1))(np.unique(x)))
+
+        
         if left:
             color = "tab:red"
             
@@ -62,7 +64,7 @@ def DispGraph(dictionary):
             
         ax.set_ylabel(f"{val_name} ({val_name_units[val_name]})",color=color,labelpad=20)
 
-        func, = ax.plot(x,y,"o",color=color)
+        func, = ax.plot(x,y,"-o",color=color)
         func.set_label(val_name)
     # ax.set_xlabel("Time (Seconds)")
     ax.xaxis.set_label_position("bottom")
