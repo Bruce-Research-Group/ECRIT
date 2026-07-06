@@ -720,6 +720,13 @@ def main():
 	print("starting program...")
 	initUI.startprogram()
 	if initUI.start_flag == False:
+		if constvals.arduino_port == None and constvals.printer_port == None:
+			constvals.Disp_Error("Could not Connect to Arduino or Printer")
+		elif constvals.arduino_port == None:
+			constvals.Disp_Error("Could not Connect to Arduino")
+		elif constvals.printer_port == None:
+			constvals.Disp_Error("Could not connect to Printer")
+		print("Can't start")
 		return
 	print("running setup...")
 	setup()
@@ -729,13 +736,14 @@ def main():
 
 	#Attempts to connect to ports and set printer to start position
 	print("confirming ports...")
-	confirmports() 
+	constvals.open_ports()
+	# confirmports() 
 	print(f"Arduino Port is {constvals.arduino_port}\nPrinter Port is {constvals.printer_port}")
 
 
 	#Launches Main Application Window
 	if constvals.get_start():
-		print("\n\n\nLaunching Application...")
+		print("\nLaunching Application...")
 		buildMainUI()
 	else:
 		print("Could not launch application.")

@@ -60,8 +60,8 @@ arduino_port = options[OPTIONS_ARDUINO]
 printer_port = options[OPTIONS_PRINTER]
 csv_filepath = options[OPTIONS_CSV]
 
-# arduino_port = None
-# printer_port = None
+arduino_port = None
+printer_port = None
 
 def Clear_SerialStream(serial_obj):
     serial_obj.reset_output_buffer()
@@ -76,10 +76,11 @@ def showcase_text(txt,symbol = "="):
     print()
 
 def attempt_auto_connect():
-    global arduino_port,printer_port
+    global arduino_port,printer_port,can_start
     for port in ports:
         if arduino_port != None and printer_port!= None:
-            return
+            can_start = True
+            return True
         port = port.name
         for baud in serial.Serial.BAUDRATES:
             if baud < 9600 or baud > 250000:
@@ -119,9 +120,12 @@ def attempt_auto_connect():
                         test_ser.close()
                         showcase_text("Made Connection to 3D Printer!")
                         break
+                print(f"closing port: {port}")
                 test_ser.close()
 
 
+            # except FileNotFoundError as e:
+            #     print("Received File Not Found!")
             except serial.SerialException as e:
                 print(f"Found no device on port: {port} at baudrate: {baud}")
                 print(f"Exception: {e}")
@@ -131,7 +135,14 @@ def attempt_auto_connect():
                 print(f"Exception: {e}")
                 continue
             finally:
-                test_ser.close()
+                try:
+                    test_ser.close()
+                except Exception as e:
+                    print(f"Received Exception: {e}")
+    if arduino_port != None and printer_port!= None:
+        can_start = True
+        return True
+    return False
             # check port for connection
             # Have selectport compare arduino and printer port to show user when selecting ports
             # if arduino and printer are found then return
@@ -334,6 +345,9 @@ def Connection_Error(exception_msg):
     messagebox.showerror(title="Can't Start Program",message="Could not communicate with connected devices.\nTry swapping the assigned ports for the arduino and printer ports.")
     raise Exception(exception_msg)
 
+def Disp_Error(msg):
+    messagebox.showerror(title="Can't Start Program",message=msg)
+
 def get_start():
     return can_start
 
@@ -343,3 +357,5 @@ def are_open():
 
 if __name__ == "__main__":
     attempt_auto_connect()
+    print(f"Arduino = {arduino_port}")
+    print(f"Printer = {printer_port}")

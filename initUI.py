@@ -41,7 +41,7 @@ def startprogram():
     frm.grid_columnconfigure(list(range(0,10)),weight=1)
 
     #Start Program Buttons
-    startbtn = Button(frm,text="Start",command=lambda: autodetectports(root),width=20,bg="#3E9B8B",fg="white")
+    startbtn = Button(frm,text="Start",command=lambda: connectports(),width=20,bg="#3E9B8B",fg="white")
     startbtn.grid(column=0,row=0,pady=50,padx=(75,40))
 
     portsbtn = Button(frm,text="Configure\nPorts",command=lambda: SelectPort.selectport(root))
@@ -78,7 +78,11 @@ def on_quit():
 def canquit():
     global exit
     return exit
-    
+
+def connectports():
+    global start_flag
+    start_flag = constvals.attempt_auto_connect()
+    destroy_startmenuroot()
 
 def autodetectports(root):
     global start_flag
