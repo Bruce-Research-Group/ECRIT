@@ -8,73 +8,36 @@ def DispGraph(dictionary):
     dictionary[constvals.DATA_IND_TIME].pop(0)
     dictionary[constvals.DATA_CURRENT].pop(0)
     dictionary[constvals.DATA_ACTUAL_VOLTAGE].pop(0)
-    val_names = [constvals.DATA_CURRENT,constvals.DATA_ACTUAL_VOLTAGE]
     
+    voltage_color = "red"
+    current_color = "blue"
+
+    point_symbol = "-o"
+
     # Labels graph title
-    val_name_units = {constvals.DATA_CURRENT:"mA",constvals.DATA_ACTUAL_VOLTAGE:"V"}
     fig,ax = plt.subplots()
-    fig.clear(keep_observers=True)
-    
     fig.suptitle("Plot of Voltage (V) and Current (mA) vs. Time (s)")
 
-    left = True
-    
-    for val_name in val_names:
-        # Gets data array from dictionary
-        exp_values= dictionary[str(val_name)]
+    volt_arr = dictionary[constvals.DATA_ACTUAL_VOLTAGE]
+    curr_arr = dictionary[constvals.DATA_CURRENT]
 
-        #print checks
-        # print(f"DATA_IND_TIME: {constvals.DATA_IND_TIME}")
-        # print(f"Time list: {dictionary[constvals.DATA_IND_TIME]}")
+    ax.set_xlabel("Time (Seconds)")
+    x = np.array(dictionary[constvals.DATA_IND_TIME])
 
-        # Loads data array and plots on the graph
-        x = np.array(dictionary[constvals.DATA_IND_TIME])
-        # x = np.array(range(0,len(dictionary[constvals.DATA_IND_TIME])))
-        y = np.array(exp_values) 
-        
+    func, = ax.plot(x,volt_arr,point_symbol,color=voltage_color)
+    func.set_label("Voltage (V)")
+    ax.set_ylabel("Voltage (V)",color=voltage_color,labelpad=20)
+    ax.tick_params(axis="y",colors=voltage_color)
 
-        
-        ax = ax.twinx()
-        ax.set_label(val_name)
-        
-
-        
-        
-
-        # plots line of best fit onto the graph
-        # ax.plot(np.unique(x), np.poly1d(np.polyfit(x, y, 1))(np.unique(x)))
-
-        
-        if left:
-            color = "tab:red"
-            
-            # pos = ax.get_label()
-            ax.yaxis.set_label_position("left")
-            ax.yaxis.tick_left()
-            
-            # pos = ax.get_position()
-            # pos.x1 = ax.get_position().x0
-            # ax.set_position(pos)
-            left =False
-        else:
-            color = "tab:blue"
-            # pos = ax.get_position()
-            # pos.x0 = ax.get_position().x1
-        
-            
-        ax.set_ylabel(f"{val_name} ({val_name_units[val_name]})",color=color,labelpad=20)
-
-        func, = ax.plot(x,y,"-o",color=color)
-        func.set_label(val_name)
-    # ax.set_xlabel("Time (Seconds)")
-    ax.xaxis.set_label_position("bottom")
-    ax.xaxis.tick_bottom()
+    axe = ax.twinx()
+    func, = axe.plot(x,curr_arr,point_symbol,color=current_color)
+    func.set_label("Current (mA)")
+    axe.set_ylabel("Current (mA)",color=current_color,labelpad=20)
+    axe.tick_params(axis="y",colors=current_color)
     
     fig.legend() 
-    
     plt.show()
     
-    # print("done")
 
 if __name__=="__main__":
     #initializing constvals variables
@@ -98,5 +61,8 @@ if __name__=="__main__":
         constvals.DATA_ACTUAL_VOLTAGE:lst3,
         constvals.DATA_IND_TIME:lst4
     }
+    print(f"Voltage: {lst2}")
+    print(f"Current: {lst}")
     DispGraph(dictionary)
+    
         

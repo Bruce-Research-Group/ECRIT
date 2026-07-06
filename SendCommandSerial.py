@@ -448,6 +448,9 @@ def download_data():
 		print(f"Recieved exception: {e}")
 		download_data()
 
+def launchgraph(data):
+	threading.Thread(target=lambda:Graphing.DispGraph(data)).start()
+
 def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,vol_list,time_list,top,root,param_frm):
 	try:
 		
@@ -587,7 +590,6 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 		# We are done with the loop
 		move_head(z=constvals.travel_z)
 		# play_sound()
-
 	# if Ctrl-C detected quit gracefully
 	except KeyboardInterrupt:
 		print("Ctrl-C detected, quitting")
@@ -607,7 +609,8 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 		top.destroy()
 		f.close()
 		download_data()
-
+		# root.destroy()
+	return
 		# Graphing.DispGraph(constvals.csvdata) # Pops up with a graph comparing current and voltage to time 	
 
 def halt_experiment(cancel):

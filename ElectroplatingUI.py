@@ -260,7 +260,17 @@ def do_task():
 		if set_voltage_target(input_voltage) != True:
 			return
 	frm_top = open_experiment_data()
-	threading.Thread(target=lambda: start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,vol_list,time_list,frm_top,m,param_frm), args=()).start()
+	plating_thread = threading.Thread(target=lambda: start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,vol_list,time_list,frm_top,m,param_frm), args=(),daemon=True)
+	plating_thread.start()
+	
+	graph_thread = threading.Thread(target=lambda:run_graph(plating_thread))
+	graph_thread.start()
+
+def run_graph(plating_thread):
+	plating_thread.join()
+	Graphing.DispGraph(constvals.csvdata)
+	
+	
 	
 if __name__ == "__main__":
 	setup()

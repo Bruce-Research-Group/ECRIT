@@ -67,6 +67,14 @@ def Clear_SerialStream(serial_obj):
     serial_obj.reset_output_buffer()
     serial_obj.reset_input_buffer()
 
+def showcase_text(txt,symbol = "="):
+    symbol_str = 3*len(txt)*symbol
+    print()
+    print(symbol_str)
+    print(len(txt)*" "+txt)
+    print(symbol_str)
+    print()
+
 def attempt_auto_connect():
     global arduino_port,printer_port
     for port in ports:
@@ -95,7 +103,7 @@ def attempt_auto_connect():
                         arduino_port = port
                         Clear_SerialStream(test_ser)
                         test_ser.close()
-                        print("Made Connection to Arduino!")
+                        showcase_text("Made Connection to Arduino!")
                         break
                     if output.__eq__("PSU not Connected\r\n"):
                         Connection_Error("Ensure Power Supply is turned on and connected to the Arduino.")
@@ -109,7 +117,7 @@ def attempt_auto_connect():
                         printer_port = port
                         Clear_SerialStream(test_ser)
                         test_ser.close()
-                        print("Made Connection to 3D Printer!")
+                        showcase_text("Made Connection to 3D Printer!")
                         break
                 test_ser.close()
 

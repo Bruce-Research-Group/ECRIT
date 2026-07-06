@@ -165,6 +165,11 @@ void setup() {
 
 	while (true)
 	{
+		ParsedCommand cmd;
+		if(commandReader.poll(Serial_Pi,cmd))
+		{
+			Serial_Pi.println("PSU not Connected")
+		}
 		char idn[64];
 		if (getSerialNumber(idn, sizeof(idn))) {
 			Serial_Pi.print("Device: ");
