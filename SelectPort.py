@@ -5,6 +5,8 @@ import serial.tools.list_ports
 import UtilUI
 import constvals
 
+global port_dict
+port_dict = {}
 #lists available ports in new window and allows user to select from given ports
 def selectport(root):
     print(str(serial.tools.list_ports.comports())) 
@@ -15,10 +17,19 @@ def selectport(root):
     ttk.Label(frm, text="Select Arduino Port").grid(column=0, row=0)
     ttk.Label(frm, text="Select Printer Port").grid(column=0, row=1)
     
+    global port_dict
     port_list = []
-    #populate port_list
+    port_dict = {}
+    #populate port_list and port_dict
     for i in serial.tools.list_ports.comports():
-        port_list.append(i.device)
+        port_id = i.device
+        port_str = i.device
+        if port_str.__eq__(constvals.discovered_arduino):
+            port_str += " (Arduino)"
+        if port_str.__eq__(constvals.discovered_printer):
+            port_str += " (3D Printer)"
+        port_list.append(port_str)
+        port_dict.update({port_str:port_id})
 
     #Dropdown menu
     global arduino_option,printer_option,options_dict
@@ -42,11 +53,12 @@ def selectport(root):
     print("exited mainloop")
 
 def confirmport(frm):
+    global port_dict
     if arduino_option.get() == printer_option.get():
         UtilUI.tooltip("Arduino Port and Printer Port can NOT be the same",autoclose=True,close_time=2)
         return
-    options_dict.update({"arduino_port":arduino_option.get()})
-    options_dict.update({"printer_port":printer_option.get()})
+    options_dict.update({"arduino_port":port_dict[arduino_option.get()]})
+    options_dict.update({"printer_port":port_dict[printer_option.get()]})
 
     with open("options.json","w") as opt_file:
         json.dump(options_dict,opt_file,ensure_ascii=False, indent=4)

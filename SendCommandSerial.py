@@ -714,7 +714,7 @@ def update_options(option, newval):
 
 def main():
 	# Initializes the constvals file and variable
-	constvals.get_start()
+	constvals.attempt_auto_connect()
 
 	# Basic Startup
 	print("starting program...")

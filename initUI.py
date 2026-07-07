@@ -82,6 +82,7 @@ def canquit():
 def connectports():
     global start_flag
     start_flag = constvals.attempt_auto_connect()
+    
     destroy_startmenuroot()
 
 def autodetectports(root):

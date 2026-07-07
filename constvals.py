@@ -24,6 +24,9 @@ DATA_ACTUAL_VOLTAGE = "Actual Voltage"
 DATA_IND_TIME = "Time Individual"
 DATA_TOTAL_TIME = "Time Accumulative"
 
+
+
+
 def check_options(dictionary):
     all_options = [OPTIONS_ARDUINO,OPTIONS_CSV,OPTIONS_PRINTER]
     for opt in all_options:
@@ -63,6 +66,15 @@ csv_filepath = options[OPTIONS_CSV]
 arduino_port = None
 printer_port = None
 
+global discovered_arduino, discovered_printer
+discovered_arduino = None
+discovered_printer = None
+
+def Update_OptionFile():
+    runtime_options = {OPTIONS_ARDUINO:arduino_port,OPTIONS_PRINTER:printer_port,OPTIONS_CSV:csv_filepath}
+    with open("options.json","w") as f:
+        json.dump(runtime_options,f,ensure_ascii=False, indent=4)
+
 def Clear_SerialStream(serial_obj):
     serial_obj.reset_output_buffer()
     serial_obj.reset_input_buffer()
@@ -77,9 +89,11 @@ def showcase_text(txt,symbol = "="):
 
 def attempt_auto_connect():
     global arduino_port,printer_port,can_start
+    global discovered_arduino, discovered_printer
     for port in ports:
         if arduino_port != None and printer_port!= None:
             can_start = True
+            Update_OptionFile()
             return True
         port = port.name
         for baud in serial.Serial.BAUDRATES:
@@ -102,6 +116,7 @@ def attempt_auto_connect():
                     print(f"Output from port: {port}\nAt baudrate: {baud}\nArduino Output: {output}")
                     if output.__eq__("Reset\r\n"):
                         arduino_port = port
+                        discovered_arduino = port
                         Clear_SerialStream(test_ser)
                         test_ser.close()
                         showcase_text("Made Connection to Arduino!")
@@ -116,6 +131,7 @@ def attempt_auto_connect():
                     print(f"Output from port: {port}\nAt baudrate: {baud}\nPrinter Output: {output}")
                     if output.__eq__("ok\n"):
                         printer_port = port
+                        discovered_printer = port
                         Clear_SerialStream(test_ser)
                         test_ser.close()
                         showcase_text("Made Connection to 3D Printer!")
@@ -141,6 +157,7 @@ def attempt_auto_connect():
                     print(f"Received Exception: {e}")
     if arduino_port != None and printer_port!= None:
         can_start = True
+        Update_OptionFile()
         return True
     return False
             # check port for connection
