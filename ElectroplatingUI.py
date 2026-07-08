@@ -263,8 +263,8 @@ def do_task():
 	plating_thread = threading.Thread(target=lambda: start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,vol_list,time_list,frm_top,m,param_frm), args=(),daemon=True)
 	plating_thread.start()
 	
-	graph_thread = threading.Thread(target=lambda:run_graph(plating_thread))
-	graph_thread.start()
+	# graph_thread = threading.Thread(target=lambda:run_graph(plating_thread))
+	# graph_thread.start()
 
 def run_graph(plating_thread):
 	plating_thread.join()
