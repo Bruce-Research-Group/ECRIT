@@ -451,7 +451,7 @@ def download_data():
 def launchgraph(data):
 	threading.Thread(target=lambda:Graphing.DispGraph(data)).start()
 
-def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,vol_list,time_list,top,root,param_frm):
+def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,vol_list,time_list,top,root,param_frm,graph_frm):
 	try:
 		
 
@@ -609,6 +609,7 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 		top.destroy()
 		f.close()
 		download_data()
+		Graphing.embed_graph(constvals.csvdata,graph_frm)
 		# root.destroy()
 	return
 		# Graphing.DispGraph(constvals.csvdata) # Pops up with a graph comparing current and voltage to time 	

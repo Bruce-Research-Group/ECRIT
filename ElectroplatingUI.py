@@ -164,9 +164,13 @@ def open_controller():
 
 def build_param_menu():
 	global input_distance,input_duration,input_current,input_voltage,param_frm
+	global graph_frm
 	#Operational Parameters
 	param_frm = ttk.Frame(m,style='TFrame')
-	param_frm.grid()
+	param_frm.grid(row=0,column=0)
+
+	graph_frm = ttk.Frame(m,style='TFrame')
+	graph_frm.grid(row=1,column=0)
 
 	distance_label = ttk.Label(param_frm, text="Distance Between WE and CE (mm):", style='TLabel')
 	distance_label.grid(row = 0, column = 0, sticky='w', padx=5, pady=5)
@@ -260,7 +264,7 @@ def do_task():
 		if set_voltage_target(input_voltage) != True:
 			return
 	frm_top = open_experiment_data()
-	plating_thread = threading.Thread(target=lambda: start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,vol_list,time_list,frm_top,m,param_frm), args=(),daemon=True)
+	plating_thread = threading.Thread(target=lambda: start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,vol_list,time_list,frm_top,m,param_frm,graph_frm), args=(),daemon=True)
 	plating_thread.start()
 	
 	# graph_thread = threading.Thread(target=lambda:run_graph(plating_thread))
@@ -269,8 +273,6 @@ def do_task():
 def run_graph(plating_thread):
 	plating_thread.join()
 	Graphing.DispGraph(constvals.csvdata)
-	
-	
 	
 if __name__ == "__main__":
 	setup()
