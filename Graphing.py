@@ -5,8 +5,12 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, 
 NavigationToolbar2Tk)
 
+# Embeds a graph of the experiment in a tkinter frame. 
+# The graph compares the experimental Current (mA) and voltage (V) vs. Time (s) 
+# 
+#
 # dictionary = dict(str,list)
-# val_name = str #String to select list from dictionary
+# frm = tkinter.ttk.Frame()
 def embed_graph(dictionary,frm):
     dictionary[constvals.DATA_IND_TIME].pop(0)
     dictionary[constvals.DATA_CURRENT].pop(0)
@@ -46,8 +50,11 @@ def embed_graph(dictionary,frm):
 
     canvas.get_tk_widget().pack()
 
-
-
+# Creates a new window, showcasing a graph of the experiment. 
+# The graph compares the experimental Current (mA) and voltage (V) vs. Time (s) 
+# 
+#
+# dictionary = dict(str,list)
 def DispGraph(dictionary):
     dictionary[constvals.DATA_IND_TIME].pop(0)
     dictionary[constvals.DATA_CURRENT].pop(0)

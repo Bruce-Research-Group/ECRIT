@@ -437,12 +437,17 @@ def download_data():
 			file = open(os.path.join(destination_path,constvals.csvname),"r")
 			file.close()
 		except Exception as e:
-			print(f"Receive expected exception: {e}")
-			shutil.move(os.path.join(tmp_dir,constvals.csvname), destination_path)
-			shutil.move(os.path.join(tmp_dir,constvals.filename),os.path.join(clean_destination,constvals.filename))
-			messagebox.showinfo(title="File Saved!",message=f"File downloaded to {destination_path}")
-			print(f"File downloaded to {destination_path}")
-			update_options(constvals.OPTIONS_CSV,clean_destination)
+			try:
+				print(f"Receive expected exception: {e}")
+				shutil.move(os.path.join(tmp_dir,constvals.csvname), destination_path)
+				shutil.move(os.path.join(tmp_dir,constvals.filename),os.path.join(clean_destination,constvals.filename))
+				messagebox.showinfo(title="File Saved!",message=f"File downloaded to {destination_path}")
+				print(f"File downloaded to {destination_path}")
+				update_options(constvals.OPTIONS_CSV,clean_destination)
+			except Exception as e:
+				messagebox.showerror(title="File Save Error",message="Your data is most likely safe, however, for some unknown reason the files could not be moved to your selected location. Search for the default temporary file path for your operating system and locate the most recent file matching the naming convention 'log_XXXXXXXX-XXXXXX.csv'.")
+				print("Could not move file from temporary directory")
+				print(f"Exception: {e}")
 	except Exception as e:
 		print("Could not find file location. Please try again.")
 		print(f"Recieved exception: {e}")
@@ -729,10 +734,10 @@ def main():
 			constvals.Disp_Error("Could not connect to Printer")
 		print("Can't start")
 		return
-	print("running setup...")
-	setup()
-	print("assigning configured values...")
-	assignbasic_vals()
+	# print("running setup...")
+	# setup()
+	# print("assigning configured values...")
+	# assignbasic_vals()
 	# print(config)
 
 	#Attempts to connect to ports and set printer to start position

@@ -70,6 +70,10 @@ global discovered_arduino, discovered_printer
 discovered_arduino = None
 discovered_printer = None
 
+global arduino_ports, printer_ports
+arduino_ports = set()
+printer_ports = set()
+
 def Update_OptionFile():
     runtime_options = {OPTIONS_ARDUINO:arduino_port,OPTIONS_PRINTER:printer_port,OPTIONS_CSV:csv_filepath}
     with open("options.json","w") as f:
@@ -90,6 +94,7 @@ def showcase_text(txt,symbol = "="):
 def attempt_auto_connect():
     global arduino_port,printer_port,can_start
     global discovered_arduino, discovered_printer
+    global arduino_ports, printer_ports
     for port in ports:
         if arduino_port != None and printer_port!= None:
             can_start = True
@@ -107,7 +112,7 @@ def attempt_auto_connect():
                     Clear_SerialStream(test_ser)
                     test_ser.close()
                     test_ser.open()
-                if arduino_port == None:
+                if arduino_port == None or True:
                     # Add to check if arduino is waiting to connect to the PSU and tell the user to turn it on and restart the program
                     test_ser.write(("r\n").encode())
                     output = test_ser.readline().decode()
@@ -120,10 +125,12 @@ def attempt_auto_connect():
                         Clear_SerialStream(test_ser)
                         test_ser.close()
                         showcase_text("Made Connection to Arduino!")
+
+                        arduino_ports.update([port])
                         break
                     if output.__eq__("PSU not Connected\r\n"):
                         Connection_Error("Ensure Power Supply is turned on and connected to the Arduino.")
-                if printer_port == None:
+                if printer_port == None or True:
                     test_ser.write(("M300 P100\r\n").encode())
                     output = test_ser.readline().decode()
                     if output == "":
@@ -135,6 +142,8 @@ def attempt_auto_connect():
                         Clear_SerialStream(test_ser)
                         test_ser.close()
                         showcase_text("Made Connection to 3D Printer!")
+
+                        printer_ports.update([port])
                         break
                 print(f"closing port: {port}")
                 test_ser.close()
@@ -374,5 +383,11 @@ def are_open():
 
 if __name__ == "__main__":
     attempt_auto_connect()
+    print("Ports:",end=" ")
+    for port in serial.tools.list_ports.comports():
+        print(port.device,end=", ")
+    print()
     print(f"Arduino = {arduino_port}")
     print(f"Printer = {printer_port}")
+    print(f"Connected Arduinos: {arduino_ports}")
+    print(f"Connected Printers: {printer_ports}")

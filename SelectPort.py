@@ -28,9 +28,10 @@ def selectport(root):
         port_id = i.device
         port_str = i.device
         # print(constvals.discovered_arduino)
-        if constvals.discovered_arduino != None and port_str.__eq__(constvals.discovered_arduino):
+        # if constvals.discovered_arduino != None and port_str.__eq__(constvals.discovered_arduino):
+        if constvals.discovered_arduino != None and port_str in constvals.arduino_ports:
             port_str += " (Arduino)"
-        if constvals.discovered_printer != None and port_str.__eq__(constvals.discovered_printer):
+        if constvals.discovered_printer != None and port_str in constvals.printer_ports:
             port_str += " (3D Printer)"
         port_list.append(port_str)
         portid_list.append(port_id)
@@ -87,6 +88,7 @@ def confirmport(frm):
     print("mainloop destroyed!")
 
 if __name__ == "__main__":
+    constvals.attempt_auto_connect()
     root = Tk()
     Button(root,text="Open Select Port Menu",command=lambda: selectport(root)).pack()
     root.mainloop()
