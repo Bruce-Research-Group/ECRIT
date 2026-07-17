@@ -422,10 +422,14 @@ def download_data():
 		keep_location = False
 	else:
 		try:
-			keep_location = messagebox.askyesno(title="Save File",message=f"Download file to {destination_path}{csvfilename}.csv")
+			keep_location = messagebox.askyesnocancel(title="Save File",message=f"Download file to {destination_path}{csvfilename}.csv")
 		except:
 			print("didn't work")
 			keep_location = False
+	if keep_location == None:
+		confirm_delete = messagebox.askyesno(title="Save File",message="Are you sure you don't want to save this file?")
+		if confirm_delete == True:
+			return
 	if keep_location == False:
 		destination_path = filedialog.asksaveasfilename(initialfile=constvals.csvname,initialdir=(csvfilename),defaultextension="*.csv",filetypes=[("CSV files", "*.csv")])
 	
