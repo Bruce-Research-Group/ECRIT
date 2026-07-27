@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 from SendCommandSerial import *
+from ThreadHandler import ThreadHandler
 
 def buildUI():
 	# setup()
@@ -266,6 +267,7 @@ def do_task():
 	frm_top = open_experiment_data()
 	plating_thread = threading.Thread(target=lambda: start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,vol_list,time_list,frm_top,m,param_frm,graph_frm), args=(),daemon=True)
 	plating_thread.start()
+
 	
 	# graph_thread = threading.Thread(target=lambda:run_graph(plating_thread))
 	# graph_thread.start()

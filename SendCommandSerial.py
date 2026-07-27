@@ -25,6 +25,7 @@ import UtilUI
 import constvals
 import Graphing
 from tkinter import filedialog
+from ThreadHandler import ThreadHandler
 
 global x_limit
 
@@ -462,8 +463,6 @@ def launchgraph(data):
 
 def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,vol_list,time_list,top,root,param_frm,graph_frm):
 	try:
-		
-
 		print(f"Ports are open: {constvals.are_open()}")
 		# send reset command to arduino
 		arduino_write("r")
@@ -618,7 +617,11 @@ def start_electroplating(cur_label,vol_label,tar_vol_label,time_remaining_label,
 		top.destroy()
 		f.close()
 		download_data()
-		Graphing.embed_graph(constvals.csvdata,graph_frm)
+		print("Started download data")
+		main_thread = ThreadHandler()
+		print(f"Thread queue: [{main_thread}]")
+		main_thread.AddToMainQueue(Graphing.DispGraph(constvals.csvdata))
+		# Graphing.embed_graph(constvals.csvdata,graph_frm)
 		# root.destroy()
 	return
 		# Graphing.DispGraph(constvals.csvdata) # Pops up with a graph comparing current and voltage to time 	
@@ -759,8 +762,53 @@ def main():
 		print("Could not launch application.")
 		launch_error()
 
+def threaded_main():
+	thread = ThreadHandler()
+
+	# Initializes the constvals file and variable
+	constvals.attempt_auto_connect()
+
+	# Basic Startup
+	thread.AddMultiple([print("starting program..."),initUI.startprogram()])
+	
+	if initUI.start_flag == False:
+		if constvals.arduino_port == None and constvals.printer_port == None:
+			thread.AddToMainQueue(constvals.Disp_Error("Could not Connect to Arduino or Printer"))
+		elif constvals.arduino_port == None:
+			thread.AddToMainQueue(constvals.Disp_Error("Could not Connect to Arduino"))
+		elif constvals.printer_port == None:
+			thread.AddToMainQueue(constvals.Disp_Error("Could not connect to Printer"))
+		thread.AddToMainQueue(print("Can't start"))
+		thread.from_main_thread_nonblocking()
+		return
+	# print("running setup...")
+	# setup()
+	# print("assigning configured values...")
+	# assignbasic_vals()
+	# print(config)
+
+	#Attempts to connect to ports and set printer to start position
+	thread.AddMultiple([print("confirming ports..."),
+					 constvals.open_ports(),
+					 print(f"Arduino Port is {constvals.arduino_port}\nPrinter Port is {constvals.printer_port}")])
+	
+
+
+	#Launches Main Application Window
+	if constvals.get_start():
+		thread.AddMultiple(
+			[print("\nLaunching Application..."),
+			buildMainUI()])
+	else:
+		thread.AddMultiple(
+			[print("Could not launch application."),
+			launch_error()])
+
 if (__name__ == "__main__"):
-	main()
+	threaded_main()
+	# main()
+
+
 	# tmp_dir = tempfile.gettempdir()
 	# new_tmp = os.path.join(tmp_dir,"log_2415362784_scbj.csv")
 	# print(new_tmp)

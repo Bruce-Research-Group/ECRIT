@@ -36,6 +36,10 @@ class ThreadHandler:
     def AddToMainQueue(cls,func):
         cls.main_thread.put(func)
     
+    def AddMultiple(cls,lst):
+        for func in lst:
+            cls.main_thread.put(func)
+    
     def dequeue(cls):
         return cls.main_thread.get()
 
