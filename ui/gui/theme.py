@@ -12,6 +12,7 @@ CANCEL = "#bc5c5c"      # Cancel Experiment
 CANCELLED = "#8E5454"   # Cancel Experiment, after it was pressed
 SELECTED = "#b1c6eb"    # the active mode button
 MUTED = "#959393"       # Set Geometric Area before a baseline is set
+SUBTLE = "#AEB6C4"      # secondary text on BG
 FONT = ("Helvetica", 12)
 
 

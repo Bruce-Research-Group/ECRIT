@@ -6,9 +6,9 @@ import argparse
 import logging
 import tkinter as tk
 from tkinter import messagebox, ttk
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Tuple
 
-from ..core.devices import connect, detect
+from ..core.devices import PortCheck, check_ports, connect, detect
 from ..core.link import PortInfo, list_ports
 from ..core.session import Session
 from ..core.settings import Config, Options
@@ -39,16 +39,33 @@ class App:
         root.grid_rowconfigure(0, weight=1)
 
         frm = tk.Frame(root, bg=theme.BG)
-        frm.grid(row=0, column=0, padx=50, pady=50)
+        frm.grid(row=0, column=0, padx=32, pady=24)
         self.start_frm = frm
 
-        self.start_btn = tk.Button(frm, text="Start", command=self._start, width=20, bg=theme.ACCENT, fg="white")
-        self.start_btn.grid(column=0, row=0, pady=50, padx=(75, 40))
-        self.ports_btn = tk.Button(frm, text="Configure\nPorts", command=self._configure_ports)
-        self.ports_btn.grid(column=4, row=4, ipady=10, padx=50)
-        tk.Button(frm, text="Quit", command=self.quit, width=15).grid(column=0, row=1, padx=(75, 40), pady=(20, 50))
+        tk.Label(frm, text="ECRIT Electroplating", bg=theme.BG, fg="white",
+                 font="Helvetica 16 bold").grid(row=0, column=0, pady=(0, 2))
+        tk.Label(frm, text="Simulated boards" if self.sim else "Experiment setup", bg=theme.BG,
+                 fg=theme.SUBTLE).grid(row=1, column=0, pady=(0, 10))
+        self.ports_label = tk.Label(frm, bg=theme.BG, fg=theme.SUBTLE, justify="left", wraplength=320)
+        self.ports_label.grid(row=2, column=0, pady=(0, 14))
+        self._show_ports()
+
+        self.start_btn = tk.Button(frm, text="Start", command=self._start, width=22, bg=theme.ACCENT, fg="white",
+                                   font="Helvetica 10 bold")
+        self.start_btn.grid(row=3, column=0, sticky="ew", ipady=6, pady=3)
+        self.ports_btn = tk.Button(frm, text="Configure Ports", command=self._configure_ports, width=22)
+        self.ports_btn.grid(row=4, column=0, sticky="ew", ipady=2, pady=3)
+        tk.Button(frm, text="Quit", command=self.quit, width=22).grid(row=5, column=0, sticky="ew", ipady=2, pady=3)
         self.status = tk.Label(frm, text="", bg=theme.BG, fg="white")
-        self.status.grid(column=0, row=5, columnspan=5)
+        self.status.grid(row=6, column=0, pady=(10, 0))
+
+    def _show_ports(self) -> None:
+        if self.sim:
+            text = "Ports are not used with simulated boards."
+        else:
+            text = "\n".join(f"{name}: {port or 'auto-detect'}" for name, port in
+                             (("ECRIT-HAT", self.options.arduino_port), ("Printer", self.options.printer_port)))
+        self.ports_label.config(text=text)
 
     def _start(self) -> None:
         self.start_btn.config(state="disabled")
@@ -86,7 +103,7 @@ class App:
                                      "or pick the ports with Configure Ports.")
 
     def _configure_ports(self) -> None:
-        PortDialog(self.root, self.options, self.tasks)
+        PortDialog(self.root, self.options, self.tasks, on_save=self._show_ports)
 
     def quit(self) -> None:
         controller = self.controller
@@ -101,14 +118,21 @@ class App:
 
 class PortDialog(tk.Toplevel):
     """Pick the HAT and printer ports. Unlisted paths (such as
-    /dev/serial/by-id/...) can be typed in."""
+    /dev/serial/by-id/...) can be typed in. Test opens the two selected
+    ports and says whether the right board answers on each."""
 
-    def __init__(self, parent: tk.Misc, options: Options, tasks: TaskRunner):
+    OK = "#2E7D32"
+    FAIL = "#C62828"
+
+    def __init__(self, parent: tk.Misc, options: Options, tasks: TaskRunner,
+                 on_save: Optional[Callable[[], None]] = None):
         super().__init__(parent)
         self.title("Select Ports")
         self.options = options
         self.tasks = tasks
+        self.on_save = on_save
         self.transient(parent)
+        self.resizable(True, False)
 
         try:
             ports: List[PortInfo] = list_ports()
@@ -118,23 +142,41 @@ class PortDialog(tk.Toplevel):
         self.by_label: Dict[str, str] = {str(p): p.device for p in ports}
         labels = list(self.by_label)
 
-        ttk.Label(self, text="Select Arduino Port", style="Dialog.TLabel").grid(column=0, row=0, padx=5, pady=5)
-        ttk.Label(self, text="Select Printer Port", style="Dialog.TLabel").grid(column=0, row=1, padx=5, pady=5)
-        self.hat = ttk.Combobox(self, values=labels, width=50)
-        self.hat.grid(column=2, row=0, padx=5, pady=5)
-        self.printer = ttk.Combobox(self, values=labels, width=50)
-        self.printer.grid(column=2, row=1, padx=5, pady=5)
+        body = tk.Frame(self)
+        body.grid(row=0, column=0, sticky="nsew", padx=16, pady=(14, 8))
+        self.grid_columnconfigure(0, weight=1)
+        body.grid_columnconfigure(1, weight=1)
+
+        self.hat, self.hat_result = self._port_row(body, 0, "ECRIT-HAT (Arduino)", labels)
+        self.printer, self.printer_result = self._port_row(body, 2, "Printer", labels)
         self._select(self.hat, options.arduino_port)
         self._select(self.printer, options.printer_port)
 
-        buttons = ttk.Frame(self)
-        buttons.grid(column=0, row=2, columnspan=3, pady=5)
-        self.detect_btn = tk.Button(buttons, text="Detect", command=self._detect)
-        self.detect_btn.grid(column=0, row=0, padx=5)
-        tk.Button(buttons, text="Confirm", command=self._confirm).grid(column=1, row=0, padx=5)
-        tk.Button(buttons, text="Cancel", command=self.destroy).grid(column=2, row=0, padx=5)
-        self.status = ttk.Label(self, text="", style="Dialog.TLabel")
-        self.status.grid(column=0, row=3, columnspan=3)
+        buttons = tk.Frame(self)
+        buttons.grid(row=1, column=0, sticky="ew", padx=16, pady=(0, 14))
+        buttons.grid_columnconfigure(2, weight=1)
+        self.detect_btn = tk.Button(buttons, text="Detect", width=8, command=self._detect)
+        self.detect_btn.grid(row=0, column=0, padx=(0, 6))
+        self.test_btn = tk.Button(buttons, text="Test", width=8, command=self._test)
+        self.test_btn.grid(row=0, column=1)
+        tk.Button(buttons, text="Cancel", width=8, command=self.destroy).grid(row=0, column=3, padx=(0, 6))
+        self.confirm_btn = tk.Button(buttons, text="Confirm", width=8, command=self._confirm,
+                                     bg=theme.ACCENT, fg="white")
+        self.confirm_btn.grid(row=0, column=4)
+        self.status = tk.Label(self, text="", anchor="w", justify="left")
+        self.status.grid(row=2, column=0, sticky="ew", padx=16, pady=(0, 10))
+
+    def _port_row(self, parent: tk.Frame, row: int, name: str, labels: List[str]):
+        tk.Label(parent, text=name, anchor="w").grid(row=row, column=0, sticky="w", padx=(0, 10))
+        box = ttk.Combobox(parent, values=labels, width=60)
+        box.grid(row=row, column=1, sticky="ew", pady=(4, 0))
+        result = tk.Label(parent, text="", anchor="w", justify="left", wraplength=480)
+        result.grid(row=row + 1, column=1, sticky="w", pady=(0, 6))
+        # A result is only good for the port it was taken on.
+        clear = lambda _event: result.config(text="")
+        box.bind("<<ComboboxSelected>>", clear)
+        box.bind("<KeyRelease>", clear)
+        return box, result
 
     def _select(self, box: ttk.Combobox, device: str) -> None:
         for label, dev in self.by_label.items():
@@ -147,21 +189,60 @@ class PortDialog(tk.Toplevel):
         text = box.get().strip()
         return self.by_label.get(text, text)
 
+    def _busy(self, busy: bool, message: str = "") -> None:
+        state = "disabled" if busy else "normal"
+        for button in (self.detect_btn, self.test_btn, self.confirm_btn):
+            button.config(state=state)
+        self.status.config(text=message, fg="black")
+
+    def _show_result(self, label: tk.Label, check: Optional[PortCheck]) -> None:
+        if check is None:
+            label.config(text="")
+        else:
+            label.config(text=("\u2713 " if check.ok else "\u2717 ") + check.detail,
+                         fg=self.OK if check.ok else self.FAIL)
+
     def _detect(self) -> None:
-        self.detect_btn.config(state="disabled")
-        self.status.config(text="Probing ports...")
+        self._busy(True, "Probing ports...")
+        self._show_result(self.hat_result, None)
+        self._show_result(self.printer_result, None)
 
         def done(found) -> None:
             if not self.winfo_exists():
                 return
-            self.detect_btn.config(state="normal")
+            self._busy(False)
             if found.hat:
                 self._select(self.hat, found.hat)
             if found.printer:
                 self._select(self.printer, found.printer)
             self.status.config(text=f"HAT: {found.hat or 'not found'}   Printer: {found.printer or 'not found'}")
 
-        self.tasks.submit(detect, done)
+        self.tasks.submit(detect, done, self._failed)
+
+    def _test(self) -> None:
+        hat, printer = self._device(self.hat), self._device(self.printer)
+        self._busy(True, "Testing the selected ports...")
+        self._show_result(self.hat_result, None)
+        self._show_result(self.printer_result, None)
+
+        def done(checks: Tuple[PortCheck, PortCheck]) -> None:
+            if not self.winfo_exists():
+                return
+            self._busy(False)
+            hat_check, printer_check = checks
+            self._show_result(self.hat_result, hat_check)
+            self._show_result(self.printer_result, printer_check)
+            if hat_check.ok and printer_check.ok:
+                self.status.config(text="Both ports are correct.", fg=self.OK)
+            else:
+                self.status.config(text="Check the ports marked \u2717, or try Detect.", fg=self.FAIL)
+
+        self.tasks.submit(lambda: check_ports(hat, printer), done, self._failed)
+
+    def _failed(self, e: Exception) -> None:
+        if self.winfo_exists():
+            self._busy(False)
+            self.status.config(text=str(e), fg=self.FAIL)
 
     def _confirm(self) -> None:
         hat, printer = self._device(self.hat), self._device(self.printer)
@@ -173,6 +254,8 @@ class PortDialog(tk.Toplevel):
             return
         self.options.arduino_port, self.options.printer_port = hat, printer
         self.options.save()
+        if self.on_save is not None:
+            self.on_save()
         self.destroy()
 
 
@@ -185,6 +268,5 @@ def main(argv: Optional[List[str]] = None) -> None:
 
     root = tk.Tk()
     theme.apply(root)
-    ttk.Style(root).configure("Dialog.TLabel", foreground="black", background="")
     App(root, Config.load(), Options.load(), sim=args.sim)
     root.mainloop()

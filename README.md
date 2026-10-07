@@ -86,7 +86,7 @@ With the ECRIT-HAT shield on an Uno R4 WiFi, upload `ECRIT_HAT/ECRIT_HAT.ino` in
 
 ![](Screenshots/ControllerMenu.png)
 
-**Troubleshooting**: If this operation does not result in any change in the 3D printer; you may have to restart the program and click the configure ports button instead. Click the dropdown to select your corresponding arduino and 3D printer ports. Then click the confirm button to complete the port selection. After successfully updating your ports, click the "Start" button on the start menu.
+**Troubleshooting**: If this operation does not result in any change in the 3D printer; you may have to restart the program and click the configure ports button instead. Click the dropdown to select your corresponding arduino and 3D printer ports. Click "Test" to check that the ECRIT-HAT and the printer answer on the selected ports (or "Detect" to search for them), then click the confirm button to complete the port selection. After successfully updating your ports, click the "Start" button on the start menu.
 
 ![](Screenshots/PortMenu.png)
 

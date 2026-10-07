@@ -425,6 +425,63 @@ def detect(ports: Optional[List[PortInfo]] = None, want_hat: bool = True, want_p
     return found
 
 
+@dataclass
+class PortCheck:
+    """What check_ports found on one port."""
+    ok: bool
+    detail: str
+
+
+_FIRMWARE_NAME = re.compile(r"FIRMWARE_NAME:(\S+(?: [\d.]+)?)")
+_MACHINE_TYPE = re.compile(r"MACHINE_TYPE:(.+?)(?= [A-Z_]+:|$)")
+
+
+def describe_hat(hat: Hat) -> str:
+    """One line about an open HAT: the PSU line from `s`. The older sketches
+    have no `s`, so they only get "answered"."""
+    for line in hat.console("s", timeout=2.0):
+        if line.startswith("psu: "):
+            psu = line[len("psu: "):]
+            return "ECRIT-HAT answered, " + ("no PSU connected" if psu == "PSU not Connected" else "PSU: " + psu)
+    return "ECRIT-HAT answered"
+
+
+def describe_printer(printer: Printer) -> str:
+    """One line about an open printer, from M115."""
+    firmware = printer.identify()
+    parts = [m.group(1) for m in (_FIRMWARE_NAME.search(firmware), _MACHINE_TYPE.search(firmware)) if m]
+    return "Printer answered" + (": " + ", ".join(parts) if parts else "")
+
+
+def check_ports(hat_port: str, printer_port: str) -> Tuple[PortCheck, PortCheck]:
+    """Open each port as the board it is meant to be and report what answered.
+
+    Sends the same harmless lines as detect ("r", "M115") plus the read-only
+    `s`. Both ports are closed again before this returns.
+    """
+    if hat_port and hat_port == printer_port:
+        same = PortCheck(False, "Both devices are set to the same port")
+        return same, same
+
+    def check(port: str, opener: Callable, describe: Callable) -> PortCheck:
+        if not port:
+            return PortCheck(False, "No port selected")
+        try:
+            device = opener(port)
+        except DeviceError as e:
+            return PortCheck(False, str(e))
+        except Exception as e:  # pyserial missing, permissions
+            return PortCheck(False, f"Could not open {port}: {e}")
+        try:
+            return PortCheck(True, describe(device))
+        except DeviceError as e:
+            return PortCheck(False, str(e))
+        finally:
+            device.close()
+
+    return check(hat_port, open_hat, describe_hat), check(printer_port, open_printer, describe_printer)
+
+
 def connect(options: Options, hat_port: Optional[str] = None, printer_port: Optional[str] = None,
             save: bool = True) -> Rig:
     """Open both boards.

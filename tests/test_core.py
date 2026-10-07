@@ -12,7 +12,9 @@ import time
 import unittest
 from pathlib import Path
 
-from ui.core.devices import DeviceError, Printer, format_number, parse_telemetry
+from ui.core import devices
+from ui.core.devices import (DeviceError, Printer, check_ports, describe_hat, describe_printer,
+                             format_number, parse_telemetry)
 from ui.core.link import Link
 from ui.core.plating import CSV_COLUMNS, PlatingRun
 from ui.core.session import Session
@@ -378,6 +380,49 @@ class PrinterTest(unittest.TestCase):
     def test_restart_is_an_error(self):
         with self.assertRaisesRegex(DeviceError, "restarted"):
             Printer(_SilentLink([(0, "start")])).send("M114")
+
+
+class PortCheckTest(unittest.TestCase):
+    def test_describe_sim_boards(self):
+        rig = sim_rig(**FAST)
+        self.assertEqual(describe_hat(rig.hat), "ECRIT-HAT answered, PSU: connected")
+        self.assertEqual(describe_printer(rig.printer),
+                         "Printer answered: Marlin 2.1.1.2, Electroplating Machine V1")
+        self.assertEqual(describe_hat(sim_rig(psu=False).hat), "ECRIT-HAT answered, no PSU connected")
+
+    def test_describe_real_m115(self):
+        m115 = ("FIRMWARE_NAME:Marlin 2.1.1.2 (Apr 26 2024 16:09:15) SOURCE_CODE_URL:github.com/MarlinFirmware/Marlin "
+                "PROTOCOL_VERSION:1.0 MACHINE_TYPE:Electroplating Machine V1 EXTRUDER_COUNT:1 UUID:cede2a2f")
+        printer = Printer(_SilentLink([(0, m115), (0, "ok")]))
+        self.assertEqual(describe_printer(printer), "Printer answered: Marlin 2.1.1.2, Electroplating Machine V1")
+
+    def test_check_ports(self):
+        rig = sim_rig(**FAST)
+        boards = {"hat-port": rig.hat, "printer-port": rig.printer}
+
+        def opener(kind):
+            def open_(port):
+                board = boards.get(port)
+                if not isinstance(board, kind):
+                    raise DeviceError(f"No {kind.__name__} answering on {port}")
+                return board
+            return open_
+
+        saved = devices.open_hat, devices.open_printer
+        devices.open_hat, devices.open_printer = opener(devices.Hat), opener(Printer)
+        try:
+            hat, printer = check_ports("hat-port", "printer-port")
+            self.assertTrue(hat.ok and printer.ok, (hat, printer))
+            hat, printer = check_ports("printer-port", "hat-port")
+            self.assertFalse(hat.ok or printer.ok)
+            self.assertIn("No Hat answering on printer-port", hat.detail)
+            hat, printer = check_ports("hat-port", "")
+            self.assertTrue(hat.ok)
+            self.assertEqual(printer.detail, "No port selected")
+            hat, printer = check_ports("hat-port", "hat-port")
+            self.assertFalse(hat.ok or printer.ok)
+        finally:
+            devices.open_hat, devices.open_printer = saved
 
 
 class OptionsTest(unittest.TestCase):
