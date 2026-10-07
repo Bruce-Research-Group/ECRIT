@@ -15,7 +15,7 @@ import random
 import re
 import threading
 import time
-from typing import List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
 
 from .devices import Hat, Printer, Rig
 from .link import Link
@@ -94,6 +94,12 @@ class SimHatLink(_TimedLink):
         super().__init__("sim:hat")
         self.psu = psu
         self.trip_after = trip_after
+        # Contact probe. `touching` says whether anode and cathode touch;
+        # sim_rig wires it to the simulated printer's Z.
+        self.touching: Callable[[], bool] = lambda: False
+        self.probe_state = "idle"
+        self.probe_started = 0.0
+        self.probe_ended = 0.0
         self.active = False
         self.current_mode = False
         self.target_current = 0.0
@@ -111,6 +117,9 @@ class SimHatLink(_TimedLink):
             if not self.psu:
                 self._push("PSU not Connected")
                 return
+            if self.probe_state == "armed":
+                self._push("Probe in progress. Send probe stop first.")
+                return
             self.active = True
             self.current_mode = word == "c"
             if self.current_mode:
@@ -125,8 +134,19 @@ class SimHatLink(_TimedLink):
             self.output_v = 0.5
             self._push("Reset")
         elif word == "f":
+            if self.probe_state == "armed":
+                self._probe_finish("aborted")
             self.active = False
             self._push("Turn off")
+        elif word == "z":
+            if self.active or self.probe_state == "armed":
+                self._push("Cannot zero while active. Turn the output off first.")
+                return
+            self._push("current zero = 0.0123 mA")
+            self._push("WE zero = 0.00001 A")
+            self._push("Zero calibrated")
+        elif word == "probe":
+            self._handle_probe(parts[1].lower() if len(parts) > 1 else "")
         elif word == "t":
             if arg is not None:
                 self.telemetry_format = int(arg) if 0 <= arg <= 2 else 0
@@ -143,6 +163,47 @@ class SimHatLink(_TimedLink):
         else:
             self._push(f"Unknown command: {text}")
 
+    def _handle_probe(self, sub: str) -> None:
+        now = time.monotonic()
+        if sub == "start":
+            if self.active:
+                self._push("Cannot probe while the output is active. Send f first.")
+            elif not self.psu:
+                self._push("PSU not Connected")
+            else:
+                self.probe_state = "armed"
+                self.probe_started = now
+                self._push(self._probe_line(now))
+        elif sub == "stop":
+            if self.probe_state == "armed":
+                self._probe_finish("aborted")
+            else:
+                self.probe_state, self.probe_started = "idle", 0.0
+                self._push(self._probe_line(now))
+        elif sub in ("cfg", "set"):
+            for line in ("--- probe settings ---", "volts = 1.000 V", "ilim = 10.000 mA", "thresh = 1.000 mA",
+                         "debounce = 2 samples", "timeout = 60000 ms"):
+                self._push(line)
+        elif sub == "":
+            if self.probe_state == "armed" and self.touching():
+                self._probe_finish("contact")
+            else:
+                self._push(self._probe_line(now))
+        else:
+            self._push(f"Unknown probe command: {sub}")
+
+    def _probe_finish(self, state: str) -> None:
+        self.probe_state = state
+        self.probe_ended = time.monotonic()
+        self._push(self._probe_line(self.probe_ended))
+
+    def _probe_line(self, now: float) -> str:
+        current = 9.87 if self.probe_state == "contact" else random.uniform(-0.05, 0.05)
+        end = now if self.probe_state == "armed" else self.probe_ended
+        elapsed = int((end - self.probe_started) * 1000) if self.probe_started else 0
+        extra = " ce_V=0.0421" if self.probe_state == "contact" else ""
+        return f"PROBE state={self.probe_state} current_mA={current:.4f}{extra} elapsed_ms={elapsed}"
+
     def _cell(self) -> Tuple[float, float]:
         """(current_mA, PSU voltage) for the present setpoint."""
         if self.current_mode:
@@ -156,6 +217,10 @@ class SimHatLink(_TimedLink):
         return current, volts
 
     def _generate(self, now: float) -> Optional[str]:
+        if self.probe_state == "armed" and self.touching():
+            # The firmware's unsolicited contact line.
+            self._probe_finish("contact")
+            return None
         if not self.active or now < self._next_emit:
             return None
         self._next_emit += self.STEP_S
@@ -168,38 +233,70 @@ class SimHatLink(_TimedLink):
         return f"{current:.4f},{volts:.3f},{readback:.3f}"
 
     def _next_generated_at(self, now: float) -> Optional[float]:
+        if self.probe_state == "armed":
+            return now + 0.01  # check for contact every 10 ms
         return self._next_emit if self.active else None
 
 
 class SimPrinterLink(_TimedLink):
-    def __init__(self, speed_mm_s: float = 50.0, home_s: float = 2.0):
+    STEPS_PER_MM = {"X": 80, "Y": 80, "Z": 400}  # the rig's M92
+
+    def __init__(self, speed_mm_s: float = 50.0, home_s: float = 2.0, quickstop_ok_s: float = 2.0):
         super().__init__("sim:printer")
-        self.speed = speed_mm_s
+        self.speed = speed_mm_s          # also the cap on any F
+        self.feed: Optional[float] = None  # mm/s from the last F, if any
         self.home_s = home_s
+        self.quickstop_ok_s = quickstop_ok_s
+        # Like Marlin, M114 reports the planned position, not the live one.
         self.position = {"X": 0.0, "Y": 0.0, "Z": 0.0}
+        self.segments: List[Tuple[float, float, dict, dict]] = []  # (t0, t1, from, to)
         self.absolute = True
         self.idle_at = 0.0  # when the last queued move finishes
         self.lcd = ""
         self.moves: List[Tuple[Optional[float], Optional[float], Optional[float]]] = []
+
+    def live(self) -> dict:
+        """Where the head is right now."""
+        now = time.monotonic()
+        for t0, t1, a, b in self.segments:
+            if now < t0:
+                return dict(a)
+            if now < t1:
+                f = (now - t0) / (t1 - t0)
+                return {k: a[k] + (b[k] - a[k]) * f for k in a}
+        return dict(self.position)
 
     def _handle(self, text: str) -> None:
         now = time.monotonic()
         start = max(now, self.idle_at)
         word = text.split()[0].upper() if text else ""
         if word in ("G0", "G1"):
+            feed = re.search(r"F(-?[\d.]+)", text.upper())
+            if feed:
+                self.feed = float(feed.group(1)) / 60
             target = dict(self.position)
             given = {}
             for axis, value in re.findall(r"([XYZ])(-?[\d.]+)", text.upper()):
                 value = float(value)
                 target[axis] = value if self.absolute else target[axis] + value
                 given[axis] = target[axis]
-            distance = math.dist([self.position[a] for a in "XYZ"], [target[a] for a in "XYZ"])
-            self.position = target
-            self.idle_at = start + distance / self.speed
-            self.moves.append((given.get("X"), given.get("Y"), given.get("Z")))
+            if given:
+                speed = min(self.feed, self.speed) if self.feed else self.speed
+                distance = math.dist([self.position[a] for a in "XYZ"], [target[a] for a in "XYZ"])
+                self.segments = [seg for seg in self.segments if seg[1] > now]
+                self.segments.append((start, start + distance / speed, dict(self.position), dict(target)))
+                self.position = target
+                self.idle_at = start + distance / speed
+                self.moves.append((given.get("X"), given.get("Y"), given.get("Z")))
             self._push("ok")
+        elif word == "M410":
+            self.position = self.live()
+            self.segments = []
+            self.idle_at = now
+            self._push("ok", self.quickstop_ok_s)
         elif word == "G28":
             self.idle_at = start + self.home_s
+            self.segments = [(start, self.idle_at, dict(self.position), {"X": 0.0, "Y": 0.0, "Z": 0.0})]
             self.position = {"X": 0.0, "Y": 0.0, "Z": 0.0}
             self._push_busy(now, self.idle_at)
             self._push("ok", self.idle_at - now)
@@ -213,8 +310,9 @@ class SimPrinterLink(_TimedLink):
             self.absolute = False
             self._push("ok")
         elif word == "M114":
-            p = self.position
-            self._push(f"X:{p['X']:.2f} Y:{p['Y']:.2f} Z:{p['Z']:.2f} E:0.00 Count X:0 Y:0 Z:0")
+            p, live = self.position, self.live()
+            counts = " ".join(f"{a}:{round(live[a] * self.STEPS_PER_MM[a])}" for a in "XYZ")
+            self._push(f"X:{p['X']:.2f} Y:{p['Y']:.2f} Z:{p['Z']:.2f} E:0.00 Count {counts}")
             self._push("ok")
         elif word == "M115":
             self._push("FIRMWARE_NAME:Marlin 2.1.1.2 (simulated) MACHINE_TYPE:Electroplating Machine V1")
@@ -244,7 +342,13 @@ def _is_number(text: str) -> bool:
 
 
 def sim_rig(speed_mm_s: float = 50.0, home_s: float = 2.0, psu: bool = True,
-            trip_after: Optional[float] = None) -> Rig:
-    return Rig(Hat(SimHatLink(psu=psu, trip_after=trip_after)),
-               Printer(SimPrinterLink(speed_mm_s=speed_mm_s, home_s=home_s)))
+            trip_after: Optional[float] = None, surface_z: Optional[float] = 45.0,
+            quickstop_ok_s: float = 2.0) -> Rig:
+    """Simulated boards. The anode touches the cathode at Z <= surface_z
+    (never, if None)."""
+    hat = SimHatLink(psu=psu, trip_after=trip_after)
+    printer = SimPrinterLink(speed_mm_s=speed_mm_s, home_s=home_s, quickstop_ok_s=quickstop_ok_s)
+    if surface_z is not None:
+        hat.touching = lambda: printer.live()["Z"] <= surface_z + 1e-9
+    return Rig(Hat(hat), Printer(printer))
 

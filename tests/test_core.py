@@ -197,6 +197,151 @@ class RunTest(unittest.TestCase):
         self.assertEqual(duration, 0.3)
 
 
+class ProbeTest(unittest.TestCase):
+    SURFACE = 45.037
+
+    def probe(self, start_z=48.0, surface_z=SURFACE, **settings):
+        from ui.core.probe import BaselineProbe, ProbeSettings
+        rig = sim_rig(speed_mm_s=200.0, home_s=0.05, surface_z=surface_z, quickstop_ok_s=0.05)
+        session = Session(rig, Config())
+        session.start()
+        session.move_to(z=start_z)
+        rig.printer.wait_for_moves()
+        # Sweep at 5 mm/s by default to keep the tests short.
+        return session, BaselineProbe(session, ProbeSettings(**{"settle": 0.0, "speed": 5.0, **settings}))
+
+    def check_found(self, session, result):
+        # The first fine step at or below the surface.
+        self.assertGreater(result.z, self.SURFACE - 0.02)
+        self.assertLessEqual(result.z, self.SURFACE)
+        self.assertEqual(session.baseline_z, result.z)
+        self.assertTrue(session.baseline_set)
+        self.assertEqual(session.position["z"], round(result.z + 1, 3))  # lifted 1 mm
+        self.assertEqual(session.rig.hat.link.sent[0], "z")
+        self.assertEqual(session.rig.hat.link.sent.count("probe start"), 2)
+        self.assertEqual(session.rig.hat.link.probe_state, "contact")
+
+    def test_sweep_finds_surface(self):
+        session, probe = self.probe()
+        result = probe.run()
+        self.check_found(session, result)
+        # Stopped by M410 a little past the surface, not at the segment end.
+        self.assertIn("M410", session.rig.printer.link.sent)
+        self.assertLess(result.coarse_z, self.SURFACE + 0.01)
+        self.assertGreater(result.coarse_z, self.SURFACE - 0.2)
+        # The slow sweep feedrate is not left behind.
+        self.assertEqual(session.rig.printer.link.sent[-3], "G1 F1500")
+
+    def test_sweep_over_several_segments(self):
+        session, probe = self.probe(start_z=50.0, segment=1.0, speed=5.0)
+        result = probe.run()
+        self.check_found(session, result)
+        self.assertGreaterEqual(sum(1 for m in session.rig.printer.link.sent if m.endswith(" F300")), 4)
+
+    def test_stepping_finds_surface(self):
+        session, probe = self.probe(speed=0)
+        result = probe.run()
+        self.check_found(session, result)
+        self.assertEqual(result.z, 45.02)
+        self.assertEqual(result.coarse_z, 45.0)
+        self.assertNotIn("M410", session.rig.printer.link.sent)
+        lowest = min(z for _, _, z in session.rig.printer.link.moves if z is not None)
+        self.assertGreaterEqual(lowest, self.SURFACE - 0.1)
+
+    def test_waits_for_moves_in_progress(self):
+        session, probe = self.probe(start_z=0.0)
+        session.move_to(z=48.0)  # passes through the surface; not waited for
+        self.check_found(session, probe.run())
+
+    def test_coarse_only(self):
+        session, probe = self.probe(speed=0, fine_step=0)
+        self.assertEqual(probe.run().z, 45.0)
+
+    def test_no_contact(self):
+        from ui.core.probe import ProbeError
+        for speed in (5.0, 0):
+            session, probe = self.probe(surface_z=None, max_travel=1.0, speed=speed)
+            with self.assertRaisesRegex(ProbeError, "No contact down to Z 47"):
+                probe.run()
+            self.assertEqual(session.position["z"], 47.0)
+            self.assertFalse(session.baseline_set)
+            self.assertNotEqual(session.rig.hat.link.probe_state, "armed")
+
+    def test_cancel_stops_the_sweep(self):
+        from ui.core.probe import ProbeError
+        session, probe = self.probe(surface_z=None, speed=1.0)
+        threading.Timer(0.6, probe.stop).start()
+        with self.assertRaisesRegex(ProbeError, "cancelled"):
+            probe.run()
+        link = session.rig.printer.link
+        self.assertIn("M410", link.sent)
+        self.assertEqual(link.live(), link.position)  # standing still
+        self.assertGreater(session.position["z"], 47.0)
+        self.assertEqual(session.rig.hat.link.probe_state, "aborted")
+        self.assertFalse(session.baseline_set)
+
+    def test_firmware_abort_mid_sweep_stops_the_head(self):
+        from ui.core.probe import ProbeError
+        session, probe = self.probe(surface_z=None, speed=1.0)
+        hat = session.rig.hat.link
+        threading.Timer(0.6, lambda: hat._handle("probe stop")).start()  # as if the firmware gave up
+        with self.assertRaisesRegex(ProbeError, "state=aborted"):
+            probe.run()
+        link = session.rig.printer.link
+        self.assertIn("M410", link.sent)
+        self.assertEqual(link.live(), link.position)
+        self.assertGreater(session.position["z"], 47.0)
+
+    def test_cancel_before_the_sweep_moves(self):
+        from ui.core.probe import ProbeError
+        session, probe = self.probe(surface_z=None, speed=1.0, settle=0.3)
+        threading.Timer(0.15, probe.stop).start()  # during the first poll's settle
+        with self.assertRaisesRegex(ProbeError, "cancelled"):
+            probe.run()
+        self.assertEqual(session.position["z"], 48.0)
+
+    def test_cancel_while_stepping(self):
+        from ui.core.probe import ProbeError
+        session, probe = self.probe(surface_z=None, speed=0, settle=0.05)
+        threading.Timer(0.3, probe.stop).start()
+        with self.assertRaisesRegex(ProbeError, "cancelled"):
+            probe.run()
+        self.assertEqual(session.rig.hat.link.probe_state, "aborted")
+
+    def test_failed_quickstop_is_caught(self):
+        from ui.core.probe import ProbeError
+        session, probe = self.probe(speed=1.0)
+        link = session.rig.printer.link
+        handle = link._handle
+        link._handle = lambda text: link._push("ok") if text == "M410" else handle(text)
+        with self.assertRaisesRegex(ProbeError, "M410 did not stop"):
+            probe.run()
+        self.assertFalse(session.baseline_set)
+
+    def test_already_touching_after_backoff(self):
+        from ui.core.probe import ProbeError
+        session, probe = self.probe(surface_z=100.0)  # touching everywhere
+        with self.assertRaisesRegex(ProbeError, "Still in contact"):
+            probe.run()
+
+    def test_refused_without_psu(self):
+        from ui.core.probe import BaselineProbe, ProbeSettings
+        rig = sim_rig(**FAST, psu=False)
+        session = Session(rig, Config())
+        session.start()
+        with self.assertRaisesRegex(DeviceError, "PSU not Connected"):
+            BaselineProbe(session, ProbeSettings(settle=0.0)).run()
+        self.assertEqual(rig.printer.link.moves, [])
+
+    def test_settings_check(self):
+        from ui.core.probe import ProbeSettings
+        ProbeSettings().check()
+        for bad in (dict(step=0), dict(step=2), dict(fine_step=0.5), dict(backoff=0.01), dict(max_travel=0),
+                    dict(speed=10), dict(speed=-1), dict(segment=0), dict(feedrate=0)):
+            with self.assertRaises(ValueError, msg=bad):
+                ProbeSettings(**bad).check()
+
+
 class _SilentLink(Link):
     port = "silent"
 
@@ -244,6 +389,19 @@ class OptionsTest(unittest.TestCase):
         options.save()
         self.assertEqual(Options.load(path).arduino_port, "/dev/ttyACM0")
 
+    def test_probe_settings_from_config(self):
+        from ui.core.probe import ProbeSettings
+        path = Path(tempfile.mkdtemp()) / "config.json"
+        path.write_text('{"travel_feedrate": 1200, "probe": {"speed": 0.5, "max_travel": 20, "bogus": 1}}')
+        with self.assertLogs("ui.core.probe", "WARNING") as logged:
+            settings = ProbeSettings.from_config(Config.load(path))
+        self.assertIn("bogus", logged.output[0])
+        self.assertEqual((settings.speed, settings.max_travel, settings.feedrate), (0.5, 20.0, 1200))
+        self.assertEqual(settings.backoff, ProbeSettings().backoff)  # not given: default
+        self.assertEqual(ProbeSettings.from_config(Config()), ProbeSettings())
+        # The shipped config.json is valid.
+        ProbeSettings.from_config(Config.load()).check()
+
     def test_config_ignores_unknown_keys(self):
         path = Path(tempfile.mkdtemp()) / "config.json"
         path.write_text('{"duration": 5, "inc_r": 2}')
@@ -266,18 +424,31 @@ class CliTest(unittest.TestCase):
     def test_shell_script(self):
         out_dir = tempfile.mkdtemp()
         script = "\n".join([
-            "home", "step 10", "jog z +", "jog z +", "baseline", "jog x 5", "point", "point",
+            "home", "step 10", "jog z +", "jog z +", "jog z +", "baseline here", "jog z -", "baseline 20",
+            "jog x 5", "point", "point",
             "jog x 5", "point", "points", "mode voltage", "voltage 2", "duration 0.2", "params",
             "start", "start -y", "pos", "bogus", "quit"])
         code, out = self.cli(["--sim", "--sim-speed", "5000", "shell", "--out", out_dir], script)
+        self.assertIn("baseline Z 30", out)  # baseline here, at Z 30
         self.assertIn("baseline Z 20", out)
         self.assertIn("a point is already set at (5, 0)", out)
         self.assertIn("1: (10, 0)", out)
         self.assertIn("use start -y in scripts", out)
         self.assertIn("completed. 2/2 point(s)", out)
         self.assertIn("unknown command 'bogus'", out)
+        self.assertIn("stopping", out)
         self.assertEqual(code, 1)  # the bogus command
         self.assertEqual(len(list(Path(out_dir).glob("log_*.csv"))), 1)
+
+    def test_piped_shell_stops_at_first_error(self):
+        code, out = self.cli(["--sim", "--sim-speed", "5000", "shell"], "move z=999\nmove z=10\npos\n")
+        self.assertEqual(code, 1)
+        self.assertNotIn("> move z=10", out)
+
+    def test_piped_baseline_search_needs_y(self):
+        code, out = self.cli(["--sim", "shell"], "baseline\npos\n")
+        self.assertIn("use baseline -y in scripts", out)
+        self.assertIn("> pos", out)  # not an error
 
     def test_run_command(self):
         out_dir = tempfile.mkdtemp()

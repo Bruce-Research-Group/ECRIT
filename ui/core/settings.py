@@ -12,6 +12,7 @@ import json
 import logging
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
+from typing import Dict
 
 log = logging.getLogger(__name__)
 
@@ -53,6 +54,15 @@ class Config:
     start_y: float = 140.0
     start_z: float = 60.0
     start_clear_z: float = 120.0
+
+    # Feedrate (mm/min) the printer is left at after a slow probe sweep.
+    # 1500 is Marlin's own power-on default.
+    travel_feedrate: float = 1500.0
+
+    # "Probe Baseline Height": the "probe" object in config.json. Its keys are
+    # ProbeSettings fields (ui.core.probe), which also hold the defaults and
+    # what each one means; missing keys keep their default.
+    probe: Dict[str, float] = field(default_factory=dict)
 
     @classmethod
     def load(cls, path: Path = CONFIG_PATH) -> "Config":

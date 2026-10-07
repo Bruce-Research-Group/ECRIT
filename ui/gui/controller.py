@@ -15,6 +15,7 @@ from tkinter import filedialog, messagebox, ttk
 from typing import Optional
 
 from ..core.plating import PlatingRun, RunResult, Sample
+from ..core.probe import BaselineProbe, ProbeError, ProbeSettings
 from ..core.session import Session
 from ..core.settings import Options
 from . import theme
@@ -91,8 +92,10 @@ class ControllerWindow:
 
         self.position_label = tk.Label(btn_frm, fg="white", bg=theme.PANEL, font="Helvetica")
         self.position_label.grid(row=9, column=1, padx=5, pady=15)
-        tk.Button(btn_frm, text="Set Baseline Height", width=20, command=self._set_baseline) \
+        tk.Button(btn_frm, text="Probe Baseline Height", width=20, command=self._probe_baseline) \
             .grid(row=10, column=1, padx=5, pady=5)
+        tk.Button(btn_frm, text="Set Baseline Height", width=20, command=self._set_baseline) \
+            .grid(row=10, column=2, padx=5, pady=5)
         tk.Button(btn_frm, text="Go To Start Point", width=20, command=self._go_to_start_point) \
             .grid(row=11, column=1, padx=5, pady=5)
 
@@ -128,10 +131,26 @@ class ControllerWindow:
     def _go_to_start_point(self) -> None:
         self._device(self.session.go_to_start_point)
 
+    def _probe_baseline(self) -> None:
+        settings = ProbeSettings.from_config(self.session.config)
+        z = self.session.position["z"]
+        how = f"at {settings.speed:g} mm/s" if settings.speed else f"{settings.step:g} mm at a time"
+        if not messagebox.askokcancel(
+                title="Probe Baseline Height",
+                message=f"The head will move down from Z {z:g} (at most {settings.max_travel:g} mm, "
+                        f"{how}) until the electrode touches the cathode, "
+                        f"then rise {settings.lift:g} mm.\n\nWhile searching, the cell is driven at the "
+                        f"HAT's probe voltage (1 V, 10 mA limit by default). The cell should be dry.\n\n"
+                        f"Start?"):
+            return
+        ProbeWindow(self, settings)
+
     # Marking goes through the device thread too, so it sees the position
     # after any jog still queued ahead of it.
     def _set_baseline(self) -> None:
-        self._device(self.session.set_baseline, lambda z: log.info("Baseline set at Z %g", z))
+        """The manual way: the head's current Z becomes the baseline."""
+        self._device(self.session.set_baseline, lambda z: log.info("Baseline set by hand at Z %g", z))
+
 
     def _add_point(self) -> None:
         def done(added):
@@ -146,7 +165,8 @@ class ControllerWindow:
         if not self.controller_frames or not self.position_label.winfo_exists():
             return
         pos = self.session.position
-        self.position_label.config(text=f"X {pos['x']:g}   Y {pos['y']:g}   Z {pos['z']:g}")
+        baseline = f"{self.session.baseline_z:g}" if self.session.baseline_set else "not found"
+        self.position_label.config(text=f"X {pos['x']:g}   Y {pos['y']:g}   Z {pos['z']:g}\nBaseline Z: {baseline}")
         count = len(self.session.points)
         self.points_label.config(text=f"{count} points set" if count else "0")
         self.undo_btn.config(state="normal" if count else "disabled")
@@ -369,3 +389,67 @@ class ControllerWindow:
         canvas.draw()
         NavigationToolbar2Tk(canvas, top).update()
         canvas.get_tk_widget().pack(fill="both", expand=True)
+
+
+class ProbeWindow:
+    """Live readout of the baseline search, with a cancel button. Modal: the
+    controller stays locked until the search ends."""
+
+    def __init__(self, controller: ControllerWindow, settings: ProbeSettings):
+        self.controller = controller
+        top = tk.Toplevel(controller.root)
+        top.title("Probing Baseline Height")
+        top.transient(controller.root)
+        top.protocol("WM_DELETE_WINDOW", self._cancel)
+        frm = ttk.Frame(top, style="TFrame", padding=10)
+        frm.grid()
+        self.top = top
+        self.state = ttk.Label(frm, text="Starting...")
+        self.state.grid(row=0, column=0, sticky="w", padx=5, pady=5)
+        self.reading = ttk.Label(frm, text="Z: -   current: -")
+        self.reading.grid(row=1, column=0, sticky="w", padx=5, pady=5)
+        self.cancel_btn = tk.Button(frm, text="Cancel", bg=theme.CANCEL, command=self._cancel)
+        self.cancel_btn.grid(row=2, column=0, padx=20, pady=5)
+        top.grab_set()
+
+        tasks = controller.tasks
+        self.probe = BaselineProbe(controller.session, settings,
+                                   on_event=lambda kind, payload: tasks.post(lambda: self._on_event(kind, payload)))
+        tasks.submit(self.probe.run, self._done, self._failed)
+
+    def _cancel(self) -> None:
+        self.cancel_btn.config(state="disabled", bg=theme.CANCELLED)
+        self.state.config(text="Cancelling...")
+        self.probe.stop()
+
+    def _on_event(self, kind: str, payload) -> None:
+        if not self.top.winfo_exists():
+            return
+        if kind == "state":
+            self.state.config(text=str(payload))
+        elif kind == "step":
+            z, reading = payload
+            current = "-" if reading.current_mA is None else f"{reading.current_mA:.3f} mA"
+            self.reading.config(text=f"Z: {z:g}   current: {current}   ({reading.state})")
+            self.controller._refresh()
+        elif kind == "moving":
+            self.reading.config(text=f"Z: ~{payload:g}   (moving)")
+
+    def _close(self) -> None:
+        if self.top.winfo_exists():
+            self.top.grab_release()
+            self.top.destroy()
+        self.controller._refresh()
+
+    def _done(self, result) -> None:
+        self._close()
+        messagebox.showinfo(title="Baseline Height",
+                            message=f"Contact at Z {result.z:g}, found in {result.seconds:.0f} s. "
+                                    f"That is now the baseline height.")
+
+    def _failed(self, e: Exception) -> None:
+        self._close()
+        if isinstance(e, ProbeError) and str(e) == "cancelled":
+            log.info("Baseline search cancelled")
+            return
+        messagebox.showerror(title="Baseline Height", message=f"No baseline found: {e}")

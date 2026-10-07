@@ -121,7 +121,7 @@ static void printFloatOrNan(float value, uint8_t decimals)
 }
 
 // Informational lines must never contain a comma: the host UI treats any line
-// with a comma as a telemetry row (SendCommandSerial.py).
+// with a comma as a telemetry row (parse_telemetry in ui/core/devices.py).
 static void printLabelled(const char *label, float value, uint8_t decimals, const char *unit)
 {
 	Serial_Pi.print(label);
@@ -1234,7 +1234,7 @@ static void emitTelemetry()
 		return;
 	}
 
-	// Column 1..3 are the contract with SendCommandSerial.py and never move.
+	// Column 1..3 are the contract with the host UI (ui/core/devices.py) and never move.
 	printFloatOrNan(sensors.current_mA, 4);
 	Serial_Pi.print(",");
 	Serial_Pi.print(outputVoltage, 3);

@@ -16,12 +16,14 @@ import logging
 import shlex
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import List, Optional, Tuple
 
 from .core.devices import DeviceError, Rig, connect, detect
 from .core.link import list_ports
 from .core.plating import PlatingRun, RunParams, RunResult, Sample
+from .core.probe import BaselineProbe, ProbeError, ProbeSettings
 from .core.session import AXES, Session
 from .core.settings import REPO_ROOT, Config, Options
 
@@ -92,6 +94,69 @@ class Progress:
                 self._last = s.t_point
                 print(f"   t={s.t_point:6.1f} s  I={s.current_mA:9.3f} mA  "
                       f"set={s.target_V:7.3f} V  read={s.voltage_V:7.3f} V")
+
+
+class ProbeProgress:
+    """Prints baseline search events: state changes and every 10th step."""
+
+    def __init__(self):
+        self.polls = 0
+        self.last_moving = 0.0
+
+    def __call__(self, kind: str, payload: object) -> None:
+        if kind == "state":
+            print(f"-- {payload}")
+        elif kind == "moving":
+            now = time.monotonic()
+            if now - self.last_moving >= 1.0:
+                self.last_moving = now
+                print(f"   Z ~{payload:g}")
+        elif kind == "step":
+            z, reading = payload  # type: ignore[misc]
+            self.polls += 1
+            if self.polls % 10 == 1 or reading.state != "armed":
+                current = "-" if reading.current_mA is None else f"{reading.current_mA:.3f} mA"
+                print(f"   Z {z:<8g} {reading.state:8} {current}")
+
+
+def probe_baseline(session: Session, settings: ProbeSettings, ask: bool) -> int:
+    """Run the baseline search with Ctrl-C as cancel. Returns an exit code."""
+    z = session.position["z"]
+    coarse = f"sweeping at {settings.speed:g} mm/s" if settings.speed else f"{settings.step:g} mm steps"
+    print(f"Searching down from Z {z:g}, at most {settings.max_travel:g} mm, {coarse} then {settings.fine_step:g} mm "
+          f"steps; the cell is driven at the HAT's probe voltage while searching.")
+    if ask and not confirm("Start the baseline search?"):
+        print("Not started (pass -y to skip this question).")
+        return EXIT_STOPPED
+    probe = BaselineProbe(session, settings, on_event=ProbeProgress())
+    box: list = []
+
+    def work():
+        try:
+            box.append(probe.run())
+        except Exception as e:
+            box.append(e)
+
+    worker = threading.Thread(target=work, daemon=True)
+    worker.start()
+    try:
+        while worker.is_alive():
+            worker.join(0.2)
+    except KeyboardInterrupt:
+        print("\nCancelling: probe off, head stays where it is.")
+        probe.stop()
+        worker.join()
+
+    outcome = box[0]
+    if isinstance(outcome, ProbeError) and str(outcome) == "cancelled":
+        print("Cancelled.")
+        return EXIT_STOPPED
+    if isinstance(outcome, Exception):
+        print(f"error: {outcome}")
+        return EXIT_ERROR
+    print(f"Baseline Z {outcome.z:g} (coarse pass stopped at {outcome.coarse_z:g}; {outcome.steps} moves, "
+          f"{outcome.seconds:.1f} s). Head at {format_position(session)}.")
+    return EXIT_OK
 
 
 def run_plating(rig: Rig, params: RunParams, out: Path, plot: Optional[Path]) -> int:
@@ -211,6 +276,28 @@ def cmd_jog(args, config, options) -> int:
     return EXIT_OK
 
 
+def probe_settings(args, config: Config) -> ProbeSettings:
+    settings = ProbeSettings.from_config(config)
+    for name in ("speed", "step", "fine_step", "max_travel", "lift"):
+        value = getattr(args, name, None)
+        if value is not None:
+            setattr(settings, name, value)
+    try:
+        settings.check()
+    except ValueError as e:
+        raise SystemExit(f"baseline: {e}")
+    return settings
+
+
+def cmd_baseline(args, config, options) -> int:
+    settings = probe_settings(args, config)
+    session = open_session(args, config, options)
+    try:
+        return probe_baseline(session, settings, ask=not args.yes)
+    finally:
+        session.rig.close()
+
+
 def cmd_run(args, config, options) -> int:
     current_mode = config.current_mode if args.current is None and args.voltage is None else args.current is not None
     params = RunParams(
@@ -266,7 +353,8 @@ def cmd_shell(args, config, options) -> int:
 # ---------------------------------------------------------------- shell
 
 class Shell(cmd.Cmd):
-    """Mirrors the controller window. `help` lists the commands."""
+    """Mirrors the controller window. `help` lists the commands. Commands
+    can come from a pipe; then the first error ends the session."""
 
     intro = "Type help for commands, quit to leave."
 
@@ -285,17 +373,24 @@ class Shell(cmd.Cmd):
     # -- plumbing
 
     def precmd(self, line: str) -> str:
-        if not self.interactive and line.strip():
+        if not self.interactive and line.strip() and line != "EOF":
             print(f"> {line.strip()}")
         return line
 
     def onecmd(self, line: str) -> bool:
+        failures = self.failures
         try:
-            return bool(super().onecmd(line))
+            done = bool(super().onecmd(line))
         except (DeviceError, ValueError) as e:
             self.failures += 1
             print(f"error: {e}")
-        return False
+            done = False
+        if self.failures > failures and not self.interactive:
+            # From a pipe, the first error ends the script, so a failed
+            # `home` cannot be followed by moves to the wrong place.
+            print("stopping: the commands are from a pipe")
+            return True
+        return done
 
     def emptyline(self) -> bool:
         return False
@@ -374,8 +469,39 @@ class Shell(cmd.Cmd):
         self._show_pos()
 
     def do_baseline(self, arg):
-        """baseline: "Set Baseline Height", the head's Z becomes the surface height."""
-        print(f"baseline Z {self.session.set_baseline():g}")
+        """baseline [-y]: "Probe Baseline Height". Move down from here until the
+        electrode touches the cathode; that Z becomes the surface height.
+        Asks first unless -y (required when commands come from a pipe).
+        Overrides for config.json's "probe" settings: speed= (mm/s, 0 steps instead)
+        step= fine= max= lift= (mm), e.g. baseline -y max=20 speed=0.5
+        baseline here: "Set Baseline Height", the head's Z becomes the baseline.
+        baseline <z>: set the baseline height to a number."""
+        words = arg.split()
+        settings = ProbeSettings.from_config(self.session.config)
+        names = {"speed": "speed", "step": "step", "fine": "fine_step", "max": "max_travel", "lift": "lift"}
+        number = []
+        for word in words:
+            key, eq, value = word.partition("=")
+            if eq:
+                if key not in names:
+                    raise ValueError(f"unknown setting {key!r}; use speed= step= fine= max= lift=")
+                setattr(settings, names[key], self._float(value, key))
+            elif word != "-y":
+                number.append(word)
+        if number == ["here"]:
+            self.session.rig.printer.wait_for_moves()
+            print(f"baseline Z {self.session.set_baseline():g}")
+            return
+        if number:
+            print(f"baseline Z {self.session.set_baseline(self._float(number[0], 'baseline')):g}")
+            return
+        settings.check()
+        ask = "-y" not in words
+        if ask and not self.interactive:
+            print("not started (use baseline -y in scripts)")
+            return
+        if probe_baseline(self.session, settings, ask) == EXIT_ERROR:
+            self.failures += 1
 
     def do_point(self, arg):
         """point: "Set Geometric Area" at the head's X,Y."""
@@ -520,6 +646,17 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("axis", choices=AXES)
     s.add_argument("mm", type=float)
     s.set_defaults(func=cmd_jog)
+
+    s = sub.add_parser("baseline", help="find the baseline height: step down until the electrodes touch",
+                       description="Searches straight down from where the head is. Unset values come from "
+                                   "config.json (\"probe\").")
+    s.add_argument("--speed", type=float, metavar="MM_S", help="coarse sweep speed; 0 steps instead")
+    s.add_argument("--step", type=float, metavar="MM", help="coarse step when --speed is 0")
+    s.add_argument("--fine-step", type=float, metavar="MM", help="fine step, 0 skips the fine pass")
+    s.add_argument("--max-travel", type=float, metavar="MM", help="give up after descending this far")
+    s.add_argument("--lift", type=float, metavar="MM", help="rise this far after contact")
+    s.add_argument("-y", "--yes", action="store_true", help="do not ask before starting")
+    s.set_defaults(func=cmd_baseline)
 
     s = sub.add_parser("run", help="plate at one or more points",
                        description="Unset values come from config.json.")

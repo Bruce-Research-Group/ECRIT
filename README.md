@@ -34,7 +34,7 @@ pip install -r requirements.txt
 ```bash
 chmod +x SendCommandSerial.py
 ```
-3. To run the gui and to view it, run the following command in the terminal or open "SendCommandSerial.py" through the file explorer
+4. To run the gui and to view it, run the following command in the terminal or open "SendCommandSerial.py" through the file explorer
 ```bash
 ./SendCommandSerial.py
 ```
@@ -57,6 +57,7 @@ The code lives in `ui/`:
 ./ecrit_cli.py status                # printer firmware and HAT status
 ./ecrit_cli.py hat s                 # send any console line to the HAT
 ./ecrit_cli.py gcode M114            # send any G-code to the printer
+./ecrit_cli.py baseline --max-travel 20  # find the baseline height below the head
 ./ecrit_cli.py run --point 146,124 --point 150,124 --baseline 44.9 \
     --distance 1 --duration 10 --current 63 --plot run.png
 ./ecrit_cli.py shell                 # the controller window as commands: home, jog, baseline, point, start, ...
@@ -70,6 +71,8 @@ The code lives in `ui/`:
 3. Click Open File and find the cloned repository from the UI setup.
 4. Open the Eletroplating_Serial_R4 folder and open the "Electroplating_Serial_R4.ino" file within
 5. After the file opens, select the arduino board and upload the code to the board. For further information on how to do so use the guide linked [here](https://support.arduino.cc/hc/en-us/articles/4733418441116-Upload-a-sketch-in-Arduino-IDE)
+
+With the ECRIT-HAT shield on an Uno R4 WiFi, upload `ECRIT_HAT/ECRIT_HAT.ino` instead (it needs the Adafruit ADS1X15 and Adafruit INA228 libraries). "Probe Baseline Height" only works with this firmware. `ECRIT_HAT/CALIBRATION.md` describes its serial console and calibration.
 
 ## Usage
 - A GUI to conduct electroplating experiments easily
@@ -92,7 +95,13 @@ The up and down arrows labeled "z-axis" are used to move the printer head up and
 
 WARNING: If the number you choose from the “Select Printer Step Size” is more than the distance between your electrode and your cell, the electrode will crash into the cell. 
 
-3. Now use the arrow buttons to position the electrode attached to the printer head such that it touches the geometric surface area on the substrate, then click "Set Baseline Height" abd also click set geometric area.
+3. Now use the arrow buttons to position the electrode attached to the printer head over the geometric surface area on the substrate, a little above the surface, then click "Probe Baseline Height". The head moves down until the electrode touches the substrate, records that height as the baseline, and lifts 1 mm. Then click "Set Geometric Area".
+
+   "Probe Baseline Height" needs the ECRIT-HAT firmware and the power supply switched on, and the cell must be dry. While searching, the HAT drives the cell at 1 V behind a 10 mA limit and switches it off the moment current flows. The head moves down at 1 mm/s and stops the moment the HAT reports contact (it overshoots by about 0.2 mm), then backs off 0.5 mm and comes down again in 0.02 mm steps. On the rig this takes about 1 s per mm searched plus about 9 s, so start a few mm above the surface when you can. The `"probe"` settings in `config.json` change these numbers; `"speed": 0` there steps down 0.1 mm at a time instead of moving continuously (slower, about 3.7 s per mm).
+
+   If it reports "No contact", the head went down `max_travel` mm (60 by default, in `config.json`'s `"probe"` settings) without current flowing: check that the electrode leads are connected. An open circuit looks exactly like empty space to the search, so the electrode may have been pressed into the substrate; lower `max_travel` to a few mm more than the gap you expect.
+
+   To set the baseline by hand instead, jog the electrode until it just touches and click "Set Baseline Height": the head's current Z becomes the baseline.
 4. If you have multiple geometric surface areas on the substrate and your objective is to perform rasterable electrodeposition, use the arrow buttons to position the electrode perpendicularly to the next geometric surface area and click "Set Geometric Area". Repeat the perpendicular position setting and the "Set Geometric Area" for all the surface areas on the substrate.
 5. Click Next.
 6. Select Voltage or Current Mode for constant current or contant voltage.

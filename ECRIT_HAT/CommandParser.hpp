@@ -10,7 +10,7 @@
 // Serial_PSU accepted "<letter> [number]" only. The calibration console needs
 // more than that, so this version tokenises the whole line while keeping the
 // legacy fields intact: `code` and `arg` still mean what they meant, so the
-// host UI (SendCommandSerial.py) keeps working unchanged.
+// host UI (ui/core/devices.py) keeps working unchanged.
 
 static constexpr uint8_t CMD_MAX_TOKENS = 6;
 

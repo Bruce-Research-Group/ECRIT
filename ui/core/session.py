@@ -87,8 +87,10 @@ class Session:
 
     # ------------------------------------------------------------ marking
 
-    def set_baseline(self) -> float:
-        self.baseline_z = self.position["z"]
+    def set_baseline(self, z: Optional[float] = None) -> float:
+        """Record the surface height: `z`, or the head's Z if not given.
+        BaselineProbe (ui.core.probe) finds it by touching the cathode."""
+        self.baseline_z = self.position["z"] if z is None else z
         self.baseline_set = True
         return self.baseline_z
 

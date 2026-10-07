@@ -282,6 +282,13 @@ The firmware kills the output itself on contact — before it prints anything, s
 the shutdown never waits on the serial port. The host does not need to react
 fast, or at all.
 
+The host UI ("Probe Baseline Height", `ui/core/probe.py`) does not step for the
+coarse search. It moves Z down continuously at 1 mm/s, listens for the
+unsolicited `state=contact` line (polling `probe` every 0.5 s as a backstop),
+and stops the printer with `M410`; the head ends up about 0.2 mm past the
+contact. It then backs off 0.5 mm and runs steps 2–4 above with 0.02 mm steps
+for the final value. It raises `probe set timeout` to cover the whole search.
+
 ### Settings
 
 | Setting | Default | Notes |

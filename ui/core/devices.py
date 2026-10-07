@@ -53,6 +53,34 @@ def parse_telemetry(line: str) -> Optional[Tuple[float, float, float]]:
         return None
 
 
+@dataclass
+class ProbeReading:
+    """One `PROBE state=...` line from the HAT's contact probe."""
+    state: str                   # idle, armed, contact, timeout, aborted
+    current_mA: Optional[float]
+    elapsed_ms: Optional[int]
+    line: str
+
+
+_PROBE_FIELD = re.compile(r"(\w+)=(\S+)")
+
+
+def parse_probe_line(line: str) -> Optional[ProbeReading]:
+    if not line.startswith("PROBE "):
+        return None
+    fields = dict(_PROBE_FIELD.findall(line))
+    if "state" not in fields:
+        return None
+
+    def number(key, kind):
+        try:
+            return kind(fields[key])
+        except (KeyError, ValueError):
+            return None
+
+    return ProbeReading(fields["state"], number("current_mA", float), number("elapsed_ms", int), line)
+
+
 def format_number(value: float) -> str:
     """Up to three decimals, no trailing zeros: 12.5 -> "12.5", 3.0 -> "3"."""
     text = f"{value:.3f}".rstrip("0").rstrip(".")
@@ -135,6 +163,36 @@ class Hat:
             # "PSU not Connected", "Latched trip. ...", "INA228 not available. ..."
             raise DeviceError(f"HAT refused {command!r}: {line}")
 
+    def zero_current(self, timeout: float = 5.0) -> None:
+        """Capture the live current zero (z). The output has to be off."""
+        line = self._expect("z", lambda l: l == "Zero calibrated" or l.startswith("Cannot"), timeout)
+        if line != "Zero calibrated":
+            raise DeviceError(f"HAT refused 'z': {line}")
+
+    def probe(self, command: str = "probe", timeout: float = 2.0) -> ProbeReading:
+        """Send a probe command (`probe`, `probe start`, `probe stop`) and
+        return the PROBE line it answers with. A refusal raises DeviceError."""
+        self.link.discard_input()
+        self.link.write_line(command)
+        deadline = time.monotonic() + timeout
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise DeviceError(f"No reply to {command!r} from the HAT")
+            line = self.link.read_line(remaining)
+            if line is None or parse_telemetry(line) is not None:
+                continue
+            reading = parse_probe_line(line)
+            if reading is not None:
+                return reading
+            # "PSU not Connected", "Cannot probe while ...", "Latched trip ..."
+            raise DeviceError(f"HAT refused {command!r}: {line}")
+
+    def request_probe(self) -> None:
+        """Write `probe` without waiting; the PROBE reply arrives like any
+        other line (see BaselineProbe's sweep)."""
+        self.link.write_line("probe")
+
     def send_off(self) -> None:
         """Write f and return at once. Safe to call from any thread."""
         self.link.write_line("f")
@@ -156,6 +214,7 @@ class Hat:
 
 
 _M114 = re.compile(r"X:\s*(-?[\d.]+)\s+Y:\s*(-?[\d.]+)\s+Z:\s*(-?[\d.]+)")
+_M114_COUNT = re.compile(r"Count X:\s*(-?\d+)\s+Y:\s*(-?\d+)\s+Z:\s*(-?\d+)")
 
 
 class Printer:
@@ -203,21 +262,46 @@ class Printer:
         return ""
 
     def position(self) -> Optional[Tuple[float, float, float]]:
+        """Position from M114. Marlin reports where the planned moves end,
+        not where the head is while it moves."""
+        return self.report()[0]
+
+    def report(self) -> Tuple[Optional[Tuple[float, float, float]], Optional[Tuple[int, int, int]]]:
+        """M114: (position, stepper counts). The counts are the live stepper
+        positions, so two reads that differ mean the head is moving."""
+        position = counts = None
         for line in self.send("M114"):
             m = _M114.search(line)
-            if m:
-                return float(m.group(1)), float(m.group(2)), float(m.group(3))
-        return None
+            if m and position is None:
+                position = float(m.group(1)), float(m.group(2)), float(m.group(3))
+            c = _M114_COUNT.search(line)
+            if c:
+                counts = int(c.group(1)), int(c.group(2)), int(c.group(3))
+        return position, counts
 
-    def move(self, x: Optional[float] = None, y: Optional[float] = None, z: Optional[float] = None) -> None:
+    def move(self, x: Optional[float] = None, y: Optional[float] = None, z: Optional[float] = None,
+             feedrate: Optional[float] = None) -> None:
         """Queue an absolute G1 move. Returns once Marlin accepted it, not when
-        the head arrives; see wait_for_moves."""
+        the head arrives; see wait_for_moves. `feedrate` is in mm/min and, as
+        always in Marlin, stays in effect for later moves."""
         command = "G1"
         for axis, value in (("X", x), ("Y", y), ("Z", z)):
             if value is not None:
                 command += f" {axis}{format_number(value)}"
         if command != "G1":
+            if feedrate is not None:
+                command += f" F{format_number(feedrate)}"
             self.send(command)
+
+    def set_feedrate(self, feedrate: float) -> None:
+        """Set the feedrate (mm/min) later moves without F use."""
+        self.send(f"G1 F{format_number(feedrate)}")
+
+    def quickstop(self) -> None:
+        """M410: stop the planned moves where the head is. Works mid-move
+        because G1 does not block Marlin's command queue (M400 and G28 do).
+        The ok takes about 2 s on this printer."""
+        self.send("M410", timeout=10.0)
 
     def wait_for_moves(self, timeout: float = 300.0) -> None:
         self.send("M400", timeout)
