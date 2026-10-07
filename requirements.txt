@@ -6,13 +6,10 @@ kiwisolver
 matplotlib
 numpy
 packaging
-pandas
 pillow
 pyparsing
 pyserial
 python-dateutil
-pytz
 six
 tk
-tzdata
 zipp

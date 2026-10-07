@@ -38,7 +38,31 @@ chmod +x SendCommandSerial.py
 ```bash
 ./SendCommandSerial.py
 ```
-`SendCommandSerial.py` in the repository root only launches the UI; the UI code itself lives in `ui/`. Settings stay in `config.json` (and the port selection in `options.json`) at the root.
+`SendCommandSerial.py` in the repository root only launches the UI. Add `--sim` to try it with simulated boards, without any hardware connected. Settings are read from `config.json` in the repository root, and the chosen ports and save folder are kept in `options.json` next to it.
+
+The code lives in `ui/`:
+
+| Path | What |
+|---|---|
+| `ui/core/` | Everything that talks to the hardware, with no Tk: settings, the HAT and printer protocols, port detection, the plating sequence, the plot, and simulated boards |
+| `ui/gui/` | The Tkinter windows |
+| `ui/cli.py` | The command-line version (below) |
+| `tests/` | Tests against the simulated boards: `python3 -m unittest discover tests` |
+
+### Command line
+`ecrit_cli.py` does what the GUI does without a display, which is handy over ssh and for scripted tests. `./ecrit_cli.py -h` lists the commands; a few examples:
+```bash
+./ecrit_cli.py ports                 # list serial ports
+./ecrit_cli.py detect --save         # find the HAT and the printer, remember them
+./ecrit_cli.py status                # printer firmware and HAT status
+./ecrit_cli.py hat s                 # send any console line to the HAT
+./ecrit_cli.py gcode M114            # send any G-code to the printer
+./ecrit_cli.py run --point 146,124 --point 150,124 --baseline 44.9 \
+    --distance 1 --duration 10 --current 63 --plot run.png
+./ecrit_cli.py shell                 # the controller window as commands: home, jog, baseline, point, start, ...
+./ecrit_cli.py --sim shell           # the same, with simulated boards
+```
+`run` and the shell's `start` ask before moving the head and turning the output on; pass `-y` to skip the question. Runs are saved to `experiment_logs/` unless `--out` says otherwise. The shell also reads commands from a pipe, for example `printf 'home\npos\n' | ./ecrit_cli.py shell`.
 
 ### Set Up Arduino
 1. Open the arduino IDE

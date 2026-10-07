@@ -3,6 +3,7 @@ experiment_logs
 *.txt
 .vscode/
 options.json
+ECRIT_HAT/docs
 
 # OS X
 .DS_Store
