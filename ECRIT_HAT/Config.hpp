@@ -74,6 +74,12 @@ namespace EcritHatConfig
 	static constexpr uint8_t CAL_DEFAULT_SAMPLES = 16;
 	static constexpr uint8_t CAL_MAX_SAMPLES = 64;
 
+	// Consecutive failed INA228 liveness probes before the part is declared
+	// lost. The bus glitches occasionally under a live cell, and one glitched
+	// probe must not end a run -- but a genuinely dead bus must not go
+	// unnoticed either. At ~10 Hz this is ~0.3 s, well inside staleMs.
+	static constexpr uint8_t INA_FAIL_LIMIT = 3;
+
 	// Samples averaged when the `z` command captures the live current zero.
 	static constexpr uint8_t ZERO_SAMPLES = 64;
 

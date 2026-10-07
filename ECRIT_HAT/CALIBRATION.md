@@ -22,7 +22,7 @@ you type `save`.
 |---|---|---|---|
 | `ce` | AIN0, CE via the 220k/33k divider and MCP6002-B | V | 25–30 V source + DMM |
 | `re` | AIN2, RE via MCP6002-A | V | 2–4 V source + DMM |
-| `cell` | AIN2 − AIN3 differential | V | 2–4 V across CN4 and CN2 |
+| `cell` | AIN2 − AIN3 differential | V | 1.5–2 V across CN4 and CN2 |
 | `we` | AIN3, shunt tap | A | 4–5 A through the shunt |
 | `rail` | AIN1, 5 V rail via 10k/10k | V | DMM at TP7, or INA228 VBUS |
 | `inai` | INA228 `CURRENT` | mA | 4–5 A series reference |
@@ -45,7 +45,30 @@ set <chan> <g> <o>       write gain and offset directly
 clr <chan> / clrall      back to unity gain and zero offset
 save / load / erase      the data flash record
 x                        leave calibration mode
+
+psu <volts>              drive the supply to apply a reference
+psu off                  supply output off
+psu i <amps>             supply current limit
 ```
+
+`psu` is the reason a session can be driven end to end over the console. `k`
+refuses to open while the control loop is running, so a reference voltage
+cannot come from `c` or `v` -- before `psu` existed the only source was the
+supply's own front panel. `psu` drives the supply directly and leaves the
+control loop suspended, so `k`, `raw`, `lo`, `hi` and `fit` all keep working
+with the reference applied.
+
+It is dispatched ahead of the calibration console, which otherwise consumes
+every command it does not recognise, so it works inside and outside `k`. The
+supply is genuinely energised while it is on: LED1 lights, and `z`, `probe`,
+`c` and `v` all refuse until `psu off`. What it does not get is the
+interlocks -- the loop that evaluates them only runs when a real run is
+active. Treat it exactly like the front panel, because that is what it is.
+
+⚠️ The current limit defaults to `CURRENT_LIMIT_MIN_A` (10 mA) at every boot,
+deliberately. Raise it with `psu i` before expecting more, and remember that
+`psu <volts>` leaves that voltage as the commanded setpoint -- a later bare
+`v` will energise straight back to it. `r` parks the setpoint at the default.
 
 Points recorded by `lo` and `hi` live in RAM and are lost on reset. If a jumper
 move resets the board — it can, if you brush the 5 V rail — write the raw numbers
@@ -148,6 +171,20 @@ lo cell 0.0          CN4 and CN2 shorted together
 hi cell <dmm volts>
 fit cell
 ```
+
+⚠️ **Keep the `cell` high point under 2 V.** The differential pair runs at
+`GAIN_TWO`, so full scale is ±2.048 V -- a third of what `re` can take on the
+same physical node. A 3 V high point saturates the channel and the fit that
+comes out of it is meaningless. Around 1.8 V leaves headroom and still spans
+most of the range.
+
+Take the low point with a real jumper rather than by setting the supply near
+zero. The offset term of a two-point fit comes almost entirely from the low
+point, and a shorted input is an exact 0.000 V with no meter error in it,
+while a 0.3 V reading on a 4.5-digit handheld carries a couple of millivolts
+of digitisation that lands straight in the fitted offset. One jumper from CN4
+to CN2 does both channels: it zeroes `cell` by definition, and because the
+shunt ties CN2 to ground at 8 mΩ with no current flowing, it zeroes `re` too.
 
 Leave CN4 open and `re` floats to roughly half the analog rail, which pushes
 `cell` past the GAIN_TWO full scale and pins it at 2.048 V. That is an open
@@ -352,11 +389,82 @@ Setting ki non-zero adds a *second* integrator and will oscillate. The shipped
 the target 10 %, raising kp until the current just begins to overshoot, then
 backing off by about a third.
 
+### kp scales with the operating current
+
+The incremental form adds `kp * error` volts to the setpoint every step, and the
+error scales with the target. A gain tuned at one current is therefore wrong at
+another, in proportion:
+
+| Target | Start-up error | Setpoint jump in one step at kp = 0.01 |
+|---|---|---|
+| 10 mA (`DEFAULT_TARGET_CURRENT_MA`) | 10 mA | 0.10 V |
+| 566 mA | 566 mA | 5.66 V |
+
+The useful way to think about it is loop gain per step, `L = kp / R_inc`, where
+`R_inc` is the cell's **incremental** resistance dV/dI at the operating point —
+not its chord resistance V/I, which on a gas-evolving cell is several times
+larger. `L` near 1 is where overshoot starts, and `L = 2` is the stability limit
+for a discrete integrator. Measure `R_inc` and the gain follows; carrying the
+compiled default across a change of setpoint does not work.
+
+### Worked example — 566 mA into a gas-evolving cell
+
+Measured 2026-09-08. `R_inc` was 7.50 Ω, so `L = kp × 133`:
+
+| kp | L | Result |
+|---|---|---|
+| 0.002 | 0.27 | stable, 5.3 % overshoot, τ 0.80 s |
+| 0.004 | 0.53 | stable, 4.0 % overshoot (not significant), τ 0.50 s |
+| 0.006 | 0.80 | stable, 6.9 % overshoot, τ 0.50 s |
+| 0.015 | 2.00 | **unstable** — setpoint oscillated 4.19–7.75 V, tripped ocp at 701 mA |
+
+Two things that example teaches:
+
+- **Rise time is rate-limited, not gain-limited.** τ was 0.50 s at both 0.004
+  and 0.006. The PSU slew and the ~10 Hz effective loop rate set the floor, so
+  above roughly `L = 0.5` more kp buys ringing rather than speed.
+- **Leave more margin than a third if the cell drifts.** `R_inc` fell from 8.6 Ω
+  to 7.5 Ω over a single session as plating proceeded, and *falling* resistance
+  *raises* loop gain. kp = 0.004 tolerates `R_inc` halving before it reaches
+  even `L = 1`; kp = 0.006 would not.
+
+### Measuring overshoot through bubble noise
+
+On a cell that evolves gas the current is not a flat line — sd was about 23 mA
+at 566 mA, roughly 4 %. A single 10 % step is 57 mA, barely twice the noise, and
+no amount of squinting at it will resolve a few percent of overshoot.
+
+What works:
+
+- **Step 100 mA rather than 10 %**, and step *up into* the operating point
+  (466 → 566 mA) rather than up out of it. Stepping to 566 mA + 10 % would leave
+  only 12 % of headroom to a 700 mA `ocp`, and bubbles will find it.
+- **Ensemble-average repeated steps**, baseline-subtracting each repetition.
+  Eight repetitions cut the residual to about 2 mA, and subtracting each
+  baseline also cancels the drift in cell resistance between repetitions.
+- **Watch the commanded voltage, not just the current.** The controller output
+  is noise-free by construction, so ringing appears there long before it is
+  visible through the current noise. It led the current overshoot at every gain
+  tested: 5.9 % of the step at kp = 0.004 against 13.3 % at kp = 0.006.
+
 ## Checks that need no reference
 
 Worth running after any change, since none of them need a calibrated source:
 
 - `scan` — 0x40 and 0x48 must both acknowledge.
+- `s` — `psu status byte` must not read `0x00`. Bits 1 and 4 are always set on
+  a healthy KD3005P, so the byte is `0x12` with the output off, `0x53` on in CV
+  and `0x52` on in CC. A `0x00` means the STATUS? read failed and both the
+  `psu regulation` and `psu output flag` lines are meaningless.
+  A dead bus does not announce itself: reads come back as all ones, which the
+  Adafruit libraries hand back as ordinary data. The giveaways in `m` are a VBUS
+  of 52428.8 V (2²⁸ LSBs), a die temperature of −0.01 °C (0xFFFF read as −1), a
+  charge of about −4715151 C, and every field frozen to the last digit across
+  consecutive reads. `readInaFast()` now probes the INA228 manufacturer ID each
+  step and trips `sensor-lost` after `INA_FAIL_LIMIT` consecutive failures, so
+  a dead bus stops the run instead of being integrated into the setpoint. The
+  probe is debounced because the bus does glitch occasionally under a live cell,
+  and one glitch must not end a run.
 - `m` with nothing attached — CE near 0 V, VBUS near 0 V, RE floating near half
   rail, current within about ±0.1 mA of zero.
 - `shunt` should equal 8 mΩ × current whenever you are injecting a known current.

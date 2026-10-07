@@ -21,6 +21,8 @@
 
 // INA228 registers the Adafruit library does not expose.
 static constexpr uint8_t INA228_REG_SOVL = 0x0C;
+static constexpr uint8_t INA228_REG_MANUFACTURER_ID = 0x3E;
+static constexpr uint16_t INA228_MANUFACTURER_ID = 0x5449; // "TI"
 
 enum AdsSlot : uint8_t
 {
@@ -36,6 +38,10 @@ struct SensorState
 {
 	bool adsOk = false;
 	bool inaOk = false;
+	// Set once at start-up if the INA228 answered then. inaOk can go false
+	// later; this stays true, so the interlocks can tell "never fitted" apart
+	// from "was working and died".
+	bool inaEverOk = false;
 
 	// ADS1115 channels, calibration applied, in electrode units.
 	float ce_V = NAN;
@@ -54,6 +60,8 @@ struct SensorState
 	float energy_J = NAN;
 	float dieTemp_C = NAN;
 	unsigned long inaFastUpdatedMs = 0;
+	// Consecutive failed liveness probes; see readInaFast().
+	uint8_t inaFailStreak = 0;
 	unsigned long inaSlowUpdatedMs = 0;
 
 	// Latched INA228 alert (D5 or the DIAG_ALRT flags).
@@ -290,11 +298,59 @@ inline void configureIna(float overCurrentTripA)
 	inaSetOvercurrentLimit(overCurrentTripA);
 }
 
+// Is the INA228 still answering? begin() validates this same register at
+// start-up; this is the cheap repeat of that check for the live loop -- two
+// bytes at 400 kHz, negligible beside a 50 ms control step.
+inline bool inaAlive()
+{
+	Wire.beginTransmission(EcritHatConfig::ADDR_INA228);
+	Wire.write(INA228_REG_MANUFACTURER_ID);
+	if (Wire.endTransmission(false) != 0) return false;
+	if (Wire.requestFrom((uint8_t)EcritHatConfig::ADDR_INA228, (uint8_t)2) != 2) return false;
+
+	// Separate statements: the order of evaluation of two read() calls inside
+	// one expression is unspecified.
+	const uint8_t hi = (uint8_t)Wire.read();
+	const uint8_t lo = (uint8_t)Wire.read();
+	return (uint16_t)(((uint16_t)hi << 8) | lo) == INA228_MANUFACTURER_ID;
+}
+
 // ---------------------------------------------------------------- INA reads
 
 inline void readInaFast(SensorState &state, const BoardCal &cal)
 {
 	if (!state.inaOk) return;
+
+	// A dead I2C bus does not fail loudly. Reads come back as all ones and the
+	// Adafruit library has no error channel to report it, so the value alone
+	// cannot be trusted: all ones in the CURRENT register is a plausible
+	// near-zero current. Confirm the part is still answering first.
+	//
+	// Observed 2026-09-08: the bus died mid-run at 466 mA. Every read returned
+	// all ones, current read as -0.02 mA, and because this function stamped
+	// inaFastUpdatedMs unconditionally the staleness guard in checkInterlocks
+	// never fired. Over-current protection was inoperative while the loop
+	// integrated a phantom 466 mA error into the setpoint at 2.8 V per step,
+	// all the way to the 30 V clamp.
+	if (!inaAlive())
+	{
+		// Publish NAN straight away even for a single glitch. The control loop
+		// already holds its setpoint rather than integrating a NAN, so one bad
+		// probe costs nothing, while believing a bad reading for even one step
+		// walks the setpoint by kp * target volts.
+		state.current_mA = NAN;
+		// Deliberately leave inaFastUpdatedMs alone so the reading also ages
+		// out, rather than looking permanently fresh.
+		if (state.inaFailStreak < 255) state.inaFailStreak++;
+		if (state.inaFailStreak >= EcritHatConfig::INA_FAIL_LIMIT)
+		{
+			state.inaOk = false;
+		}
+		return;
+	}
+
+	state.inaFailStreak = 0;
+
 	state.current_mA = applyCal(cal.ch[CAL_INA_I], ina.readCurrent()) - state.zeroCurrent_mA;
 	state.inaFastUpdatedMs = millis();
 }

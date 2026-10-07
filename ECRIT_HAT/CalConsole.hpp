@@ -328,6 +328,8 @@ public:
 		out.println("  avg [n]                 samples averaged per reading");
 		out.println("  save / load / erase     data flash record");
 		out.println("  x                       leave calibration mode");
+		out.println("  psu <volts> / psu off   drive the supply to apply a reference");
+		out.println("  psu i <amps>            supply current limit");
 		printChannels(out);
 		out.println("Units: ce re cell inav rail in V; we in A; inai in mA");
 	}

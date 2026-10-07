@@ -54,12 +54,34 @@ size_t query(const char *command, char *response, size_t responseSize)
 	delay(KD3000_BASE_RESPONSE_DELAY_MS);
 
 	size_t index = 0;
-	unsigned long deadline = millis() + KD3000_QUERY_TIMEOUT_MS;
+	// Two deadlines. `deadline` is the idle timeout that the inter-character
+	// grace pushes forward; `hardDeadline` is the absolute cap that the grace
+	// may never push past.
+	//
+	// Both are needed. The inner drain loop below runs while bytes keep
+	// arriving, so it has to test a deadline itself -- otherwise a line that
+	// never goes idle traps us there and the outer test is never reached. And
+	// the grace has to be capped, because a source delivering a byte more
+	// often than KD3000_INTER_CHAR_GRACE_MS -- at 9600 baud that is every
+	// single character -- renews the idle timeout indefinitely. Without both,
+	// a babbling or noisy RX input hangs query() forever, and since
+	// probePsuOnce() runs from setup(), it hangs the sketch before `Ready`
+	// and takes the USB console down with it.
+	//
+	// The cap restores what PsuControl.hpp already documents: "a query that
+	// gets no answer costs 350 ms" -- the 50 ms settle plus this timeout.
+	const unsigned long hardDeadline = millis() + KD3000_QUERY_TIMEOUT_MS;
+	unsigned long deadline = hardDeadline;
 
 	while ((long)(deadline - millis()) > 0)
 	{
 		while (INTERFACE.available() > 0)
 		{
+			if ((long)(hardDeadline - millis()) <= 0)
+			{
+				break;
+			}
+
 			const char ch = (char)INTERFACE.read();
 
 			if (ch == '\r' || ch == '\n')
@@ -76,7 +98,17 @@ size_t query(const char *command, char *response, size_t responseSize)
 			{
 				response[index++] = ch;
 			}
+
 			deadline = millis() + KD3000_INTER_CHAR_GRACE_MS;
+			if ((long)(deadline - hardDeadline) > 0)
+			{
+				deadline = hardDeadline;
+			}
+		}
+
+		if ((long)(hardDeadline - millis()) <= 0)
+		{
+			break;
 		}
 	}
 
@@ -131,10 +163,53 @@ void setOutput(bool on)
 	set(on ? "OUT1" : "OUT0");
 }
 
+// Read the STATUS? byte.
+//
+// This deliberately does not go through query(), for two independent reasons,
+// both of which silently produced a wrong answer rather than an error:
+//
+//   - query() treats CR and LF as end-of-response. The status byte is binary,
+//     so 0x0A and 0x0D are legal values, and query() would swallow them as
+//     terminators and report an empty reply.
+//
+//   - the caller then ran the text through atol(). The two most common replies
+//     from this supply are '@' (0x40, output on, CC) and 'A' (0x41, output on,
+//     CV); atol() maps both to 0, which reads back as CC mode with the output
+//     off. That is why the supply appeared to be permanently in CC with the
+//     output off even while it was visibly delivering current.
+//
+// There is no fixed settle delay here: waiting on available() with a deadline
+// covers the manual's 50 ms response time and returns as soon as the byte
+// lands. Any trailing terminator is left in the buffer for the next command's
+// clearInputBuffer() to discard, which is what every other call already does.
+bool queryStatusByte(uint8_t &out)
+{
+	clearInputBuffer();
+	INTERFACE.write("STATUS?");
+	INTERFACE.write('\n');
+	INTERFACE.flush();
+
+	const unsigned long deadline = millis() + KD3000_QUERY_TIMEOUT_MS;
+	while (INTERFACE.available() <= 0)
+	{
+		if ((long)(deadline - millis()) <= 0)
+		{
+			return false;
+		}
+	}
+
+	out = (uint8_t)INTERFACE.read();
+	return true;
+}
+
 KD3000Status getStatus()
 {
 	KD3000Status status = {0};
-	status.raw = (uint8_t)queryLong("STATUS?");
+	uint8_t raw = 0;
+	if (queryStatusByte(raw))
+	{
+		status.raw = raw;
+	}
 	return status;
 }
 

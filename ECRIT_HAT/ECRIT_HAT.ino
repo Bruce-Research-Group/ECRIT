@@ -61,6 +61,22 @@ static bool active = false;
 // the mode of the system
 static bool currentMode = false;
 
+// Manual supply control, driven from the console by `psu`.
+//
+// `active` stays false throughout, and that is the entire point: the
+// calibration console refuses to open while a run is going, but the voltage
+// channels need a reference actually applied to CN1 or CN4 while they are
+// being read. This drives the supply and leaves the control loop suspended.
+//
+// The supply really is energised while this is set, so every guard that
+// exists to keep hands off a live output has to test it too -- LED1, `z`,
+// `probe`, `c` and `v`. What it deliberately does not get is the interlocks,
+// because the loop that evaluates them returns early whenever `active` is
+// false. This is the supply's front panel, reachable over the wire, and it
+// carries the same responsibilities.
+static bool manualOutput = false;
+static float manualLimitA = CURRENT_LIMIT_MIN_A;
+
 // Is a KD3005P answering on Serial1? The board is useful without one.
 static bool psuPresent = false;
 static char psuIdn[64] = {0};
@@ -132,7 +148,7 @@ static void updateLeds(unsigned long nowMs)
 	else
 	{
 		// Probing energises the supply too, and the indicator has to say so.
-		output = active || probeIsArmed(probeState);
+		output = active || probeIsArmed(probeState) || manualOutput;
 	}
 	digitalWrite(PIN_LED_OUTPUT, output ? HIGH : LOW);
 
@@ -149,6 +165,7 @@ static void updateLeds(unsigned long nowMs)
 static void stopOutput()
 {
 	active = false;
+	manualOutput = false;
 	resetPID();
 	setOutput(false);
 	interlockState.complianceSinceMs = 0;
@@ -219,6 +236,11 @@ static void probeStart()
 	if (active)
 	{
 		Serial_Pi.println("Cannot probe while the output is active. Send f first.");
+		return;
+	}
+	if (manualOutput)
+	{
+		Serial_Pi.println("Manual PSU output is on. Send psu off first.");
 		return;
 	}
 	if (latchedTrip != TRIP_NONE)
@@ -481,6 +503,7 @@ static void initSensors()
 	// begin() verifies the TI manufacturer ID and the device ID, so a false
 	// return means the part is absent or the bus is broken.
 	sensors.inaOk = ina.begin(ADDR_INA228, &Wire);
+	sensors.inaEverOk = sensors.inaOk;
 	if (sensors.inaOk)
 	{
 		configureIna(interlockCfg.inaAlertLimit_A);
@@ -558,6 +581,8 @@ static void printStatus()
 	Serial_Pi.println("--- status ---");
 	Serial_Pi.print("output: ");
 	Serial_Pi.println(active ? "on" : "off");
+	Serial_Pi.print("manual psu output: ");
+	Serial_Pi.println(manualOutput ? "ON" : "off");
 	Serial_Pi.print("mode: ");
 	Serial_Pi.println(currentMode ? "constant current" : "constant voltage");
 	printLabelled("target current", targetCurrent, 3, "mA");
@@ -575,6 +600,9 @@ static void printStatus()
 			Serial_Pi.println(psu.cvMode ? "CV" : "CC");
 			Serial_Pi.print("psu output flag: ");
 			Serial_Pi.println(psu.outputOn ? "on" : "off");
+			Serial_Pi.print("psu status byte: 0x");
+			if (psu.statusRaw < 0x10) Serial_Pi.print('0');
+			Serial_Pi.println(psu.statusRaw, HEX);
 		}
 		printLabelled("psu readback voltage", psu.voltageReadbackV, 3, "V");
 		printLabelled("psu readback current", psu.currentReadbackA, 3, "A");
@@ -686,6 +714,8 @@ static void printHelp()
 	Serial_Pi.println("  pid - Show gains. pid <kp|ki|kd> <value>. pid save / load / reset");
 	Serial_Pi.println("  probe - Contact probe state. probe start / stop / cfg");
 	Serial_Pi.println("  probe set <volts|ilim|thresh|debounce|timeout> <value>");
+	Serial_Pi.println("  psu [volts] - Drive the supply directly, loop stays suspended");
+	Serial_Pi.println("  psu off / psu i <amps> - Output off / set the current limit");
 	Serial_Pi.println("  dry [0|1] - Bench mode: run the loop with no PSU attached");
 	Serial_Pi.println("  lim - Show interlock limits");
 	Serial_Pi.println("  lim on|off - Enable or disable all interlocks");
@@ -749,6 +779,111 @@ static bool handleLimCommand(const ParsedCommand &cmd)
 
 	printLimits();
 	return true;
+}
+
+// ------------------------------------------------------------ manual supply
+
+static void printPsuManualState()
+{
+	Serial_Pi.print("psu manual output: ");
+	Serial_Pi.println(manualOutput ? "ON -- supply energised" : "off");
+	printLabelled("psu setpoint", outputVoltage, 3, "V");
+	printLabelled("psu current limit", manualLimitA, 4, "A");
+
+	if (psuPresent && !dryRun)
+	{
+		updatePsuReadbackIfDue(psu, PSU_CFG, millis(), true);
+		printLabelled("psu readback voltage", psu.voltageReadbackV, 3, "V");
+		printLabelled("psu readback current", psu.currentReadbackA, 4, "A");
+	}
+}
+
+// Drive the supply by hand, for calibration.
+//
+// `k` refuses to open while the control loop is running, so a reference for
+// the voltage channels cannot come from `c` or `v`. Before this, the only way
+// to apply one was the supply's front panel, which meant no calibration
+// session could be driven end to end over the console.
+//
+// serviceConsole() dispatches this ahead of the calibration console, which
+// otherwise consumes every command it does not recognise.
+static void handlePsuCommand(const ParsedCommand &cmd)
+{
+	if (!psuLinkAvailable())
+	{
+		Serial_Pi.println("PSU not Connected");
+		return;
+	}
+	if (active)
+	{
+		Serial_Pi.println("Control loop is running. Send f first.");
+		return;
+	}
+	if (probeIsArmed(probeState))
+	{
+		Serial_Pi.println("Probe in progress. Send probe stop first.");
+		return;
+	}
+	if (latchedTrip != TRIP_NONE)
+	{
+		Serial_Pi.println("Latched trip. Clear it with w first.");
+		return;
+	}
+
+	if (!cmd.has(1))
+	{
+		printPsuManualState();
+		return;
+	}
+
+	if (strcasecmp(cmd.argv[1], "off") == 0)
+	{
+		manualOutput = false;
+		setOutput(false);
+		invalidatePsuSetpointCache(psu);
+		Serial_Pi.println("PSU output off");
+		printPsuManualState();
+		return;
+	}
+
+	if (strcasecmp(cmd.argv[1], "i") == 0)
+	{
+		if (!cmd.has(2))
+		{
+			Serial_Pi.println("Usage: psu i <amps>");
+			return;
+		}
+		manualLimitA = clampFloat(cmd.number(2, manualLimitA),
+		                          CURRENT_LIMIT_MIN_A, MAX_CURRENT_A);
+		if (manualOutput)
+		{
+			setPsuCurrentLimitIfNeeded(psu, PSU_CFG, manualLimitA);
+		}
+		printPsuManualState();
+		return;
+	}
+
+	// Anything else has to be a voltage. Reject a stray word rather than
+	// letting atof() turn it into 0.0 and energise on a typo.
+	const char *t = cmd.argv[1];
+	if (!(isdigit((unsigned char)t[0]) || t[0] == '.' || t[0] == '-' || t[0] == '+'))
+	{
+		Serial_Pi.println("Usage: psu [<volts> | off | i <amps>]");
+		return;
+	}
+
+	outputVoltage = clampFloat(cmd.number(1, outputVoltage),
+	                           OUTPUT_VOLTAGE_MIN, OUTPUT_VOLTAGE_MAX);
+
+	// Current limit before voltage, voltage before output. Never energise
+	// into an unknown limit.
+	invalidatePsuSetpointCache(psu);
+	setPsuCurrentLimitIfNeeded(psu, PSU_CFG, manualLimitA);
+	setPsuVoltageIfNeeded(psu, PSU_CFG, outputVoltage);
+	setOutput(true);
+	manualOutput = true;
+
+	printPsuManualState();
 }
 
 static void handleCommand(const ParsedCommand &cmd)
@@ -821,6 +956,11 @@ static void handleCommand(const ParsedCommand &cmd)
 				Serial_Pi.println("Probe in progress. Send probe stop first.");
 				break;
 			}
+			if (manualOutput)
+			{
+				Serial_Pi.println("Manual PSU output is on. Send psu off first.");
+				break;
+			}
 			// Galvanostatic control closes on the INA228. Without it the PID
 			// would integrate NaN straight into the setpoint.
 			if (!sensors.inaOk)
@@ -860,6 +1000,11 @@ static void handleCommand(const ParsedCommand &cmd)
 			if (probeIsArmed(probeState))
 			{
 				Serial_Pi.println("Probe in progress. Send probe stop first.");
+				break;
+			}
+			if (manualOutput)
+			{
+				Serial_Pi.println("Manual PSU output is on. Send psu off first.");
 				break;
 			}
 			active = true;
@@ -904,7 +1049,7 @@ static void handleCommand(const ParsedCommand &cmd)
 		// zero current wanders by roughly 0.1 mA as the board warms. Capture it
 		// here, in RAM, just before a run.
 		case 'z':
-			if (active || probeIsArmed(probeState))
+			if (active || manualOutput || probeIsArmed(probeState))
 			{
 				Serial_Pi.println("Cannot zero while active. Turn the output off first.");
 				break;
@@ -1041,6 +1186,15 @@ static bool serviceConsole()
 	if (!commandReader.poll(Serial_Pi, cmd))
 	{
 		return false;
+	}
+
+	// Ahead of the calibration console, which consumes every command it does
+	// not recognise. Driving the supply by hand is most useful precisely while
+	// calibration mode is open.
+	if (cmd.is("psu"))
+	{
+		handlePsuCommand(cmd);
+		return true;
 	}
 
 	if (calConsole.handle(cmd, Serial_Pi, cal, sensors, adsScanner))

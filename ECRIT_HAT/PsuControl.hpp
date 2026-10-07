@@ -43,6 +43,10 @@ struct PsuState
 	bool statusValid = false;
 	bool cvMode = true;
 	bool outputOn = false;
+	// Last STATUS? byte exactly as the supply sent it, for `s`. Bits 1-5 and 7
+	// are undocumented for this model, so keeping the raw value is the only way
+	// to tell a genuine reading from a decode that has gone wrong again.
+	uint8_t statusRaw = 0;
 };
 
 inline float clampFloat(float value, float lo, float hi)
@@ -67,13 +71,10 @@ inline bool psuQueryFloat(const char *command, float &out)
 
 inline bool psuQueryStatus(uint8_t &out)
 {
-	char response[32];
-	if (query("STATUS?", response, sizeof(response)) == 0)
-	{
-		return false;
-	}
-	out = (uint8_t)atol(response);
-	return true;
+	// Straight through to the raw-byte reader. This used to call query() and
+	// atol(), which turned every non-numeric status byte into 0 -- see the
+	// comment on queryStatusByte() in KD3000.cpp.
+	return queryStatusByte(out);
 }
 
 inline void setPsuVoltageIfNeeded(PsuState &state, const PsuConfig &cfg, float voltageV)
@@ -161,6 +162,7 @@ inline void updatePsuReadbackIfDue(PsuState &state, const PsuConfig &cfg, unsign
 			const KD3000Status status = {raw};
 			state.cvMode = status.cvMode();
 			state.outputOn = status.outputOn();
+			state.statusRaw = raw;
 			state.statusValid = true;
 			state.lastGoodCommsMs = millis();
 		}

@@ -71,6 +71,24 @@ Description：Over current
 Example ：OCP1 OCP ON
  */
 
+// Two corrections to the transcription above, both confirmed against a real
+// KD3005P V7.1 on 2026-09-08.
+//
+// The manual disagrees with itself about the identification query: the command
+// reference lists `*IDN?` while the functionality-check page lists `*DIN?`.
+// `*IDN?` is the one that works -- it returns
+// "KORAD KD3005P V7.1 SN:00304269". `*DIN?` is an erratum.
+//
+// STATUS? returns a single raw byte, not decimal text, so it must be read with
+// queryStatusByte(). Bits 1 and 4 are documented "N/A" but are in fact always
+// set on this unit, so the byte is never zero when the link is healthy:
+//
+//   0x12  output off            (bits 1, 4)
+//   0x53  output on,  CV mode   (bits 0, 1, 4, 6)
+//   0x52  output on,  CC mode   (bits 1, 4, 6)
+//
+// A reported status of 0x00 therefore means the read failed, not that the
+// supply is idle in CC -- which is exactly how the old atol() decode failed.
 enum KD3000StatusBit : uint8_t
 {
 	KD3000_STATUS_CV_MODE_BIT = 0,
@@ -95,6 +113,11 @@ struct KD3000Status
 // raw helper functions
 void set(const char *command);
 size_t query(const char *command, char *response, size_t responseSize);
+
+// STATUS? answers with a single raw byte -- the manual calls it "8 bits in the
+// following format", not a number. It needs its own reader; see the comment on
+// the definition for why query() cannot be used.
+bool queryStatusByte(uint8_t &out);
 
 void setCurrent(float current);
 float getCurrentSetting();
