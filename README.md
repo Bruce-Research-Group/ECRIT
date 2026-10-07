@@ -38,6 +38,7 @@ chmod +x SendCommandSerial.py
 ```bash
 ./SendCommandSerial.py
 ```
+`SendCommandSerial.py` in the repository root only launches the UI; the UI code itself lives in `ui/`. Settings stay in `config.json` (and the port selection in `options.json`) at the root.
 
 ### Set Up Arduino
 1. Open the arduino IDE

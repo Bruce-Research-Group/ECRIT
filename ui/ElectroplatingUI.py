@@ -4,8 +4,6 @@ from SendCommandSerial import *
 from ThreadHandler import ThreadHandler
 
 def buildUI():
-	# setup()
-	# assignbasic_vals()
 	global m
 	m = tk.Tk()
 	m.configure(background='#2E3440')
@@ -276,8 +274,7 @@ def run_graph(plating_thread):
 	plating_thread.join()
 	Graphing.DispGraph(constvals.csvdata)
 	
+# Opens the controller window straight away, skipping the start menu and port
+# setup: a preview of the UI. Serial ports are not opened in this mode.
 if __name__ == "__main__":
-	setup()
-	assignbasic_vals()
-	# build_controllerUI()
 	buildUI()
