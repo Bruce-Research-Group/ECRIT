@@ -61,6 +61,11 @@ class Config:
     # 1500 is Marlin's own power-on default.
     travel_feedrate: float = 1500.0
 
+    # The point map on the controller page shows +X to the right and +Y up.
+    # Set these to flip an axis to match how the bed looks from the operator.
+    map_invert_x: bool = False
+    map_invert_y: bool = False
+
     # "Probe Baseline Height": the "probe" object in config.json. Its keys are
     # ProbeSettings fields (ui.core.probe), which also hold the defaults and
     # what each one means; missing keys keep their default.

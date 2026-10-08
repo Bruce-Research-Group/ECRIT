@@ -106,6 +106,21 @@ class Session:
     def undo_point(self) -> Optional[Tuple[float, float]]:
         return self.points.pop() if self.points else None
 
+    def remove_point(self, index: int) -> Tuple[float, float]:
+        """Remove point `index` (0-based) from the run order."""
+        self._check_index(index)
+        return self.points.pop(index)
+
+    def move_point(self, index: int, to: int) -> None:
+        """Move point `index` to position `to` in the run order (0-based)."""
+        self._check_index(index)
+        self._check_index(to)
+        self.points.insert(to, self.points.pop(index))
+
+    def _check_index(self, index: int) -> None:
+        if not 0 <= index < len(self.points):
+            raise IndexError(f"there is no point {index + 1} ({len(self.points)} set)")
+
     # ------------------------------------------------------------ run
 
     def run_params(self) -> RunParams:

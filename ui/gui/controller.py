@@ -1,7 +1,9 @@
 """The main window: the controller page, the parameter page, and the run.
 
-Controller page: home, jog, set the baseline height and the geometric areas.
-Parameter page: distance, duration, current or voltage, then start.
+Controller page: home and jog, set the baseline height, and add the points
+to plate at, shown in a list and on a map.
+Parameter page: pick constant current or voltage, then the setpoint,
+time and distance, then start.
 A run opens a live readout with a cancel button; when it ends the results are
 saved and plotted.
 """
@@ -12,31 +14,39 @@ import logging
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
-from typing import Optional
+from typing import List, Optional, Tuple
 
-from ..core.plating import PlatingRun, RunResult, Sample, describe_reference
+from ..core.plating import PlatingRun, RunParams, RunResult, Sample, describe_reference
 from ..core.probe import BaselineProbe, ProbeError, ProbeSettings
 from ..core.session import Session
 from ..core.settings import Options
 from . import theme
+from .pointlist import PointList
+from .pointmap import PointMap
 from .tasks import TaskRunner
 
 log = logging.getLogger(__name__)
 
 STEP_SIZES = (("0.1", 0.1), ("1", 1.0), ("10", 10.0), ("100", 100.0))
+# (current_mode, title, detail) for the mode cards on the parameter page.
+MODES = ((True, "Constant Current", "Holds a set current (mA)"),
+         (False, "Constant Voltage", "Holds a set voltage (V)"))
 
 
 class ControllerWindow:
-    def __init__(self, root: tk.Tk, session: Session, tasks: TaskRunner, options: Options):
+    def __init__(self, root: tk.Tk, session: Session, tasks: TaskRunner, options: Options, sim: bool = False):
         self.root = root
+        self.title_suffix = " (simulated)" if sim else ""
         self.session = session
         self.tasks = tasks
         self.options = options
         self.run: Optional[PlatingRun] = None
         self.step = tk.DoubleVar(root, 1.0)
+        # (what was done, the points before it), newest last, for Undo.
+        self.points_history: List[Tuple[str, List[Tuple[float, float]]]] = []
 
-        self.controller_frames = []
-        self.param_frm: Optional[ttk.Frame] = None
+        self.controller_frm: Optional[tk.Frame] = None
+        self.param_frm: Optional[tk.Frame] = None
         self.run_window: Optional[tk.Toplevel] = None
         self.show_controller()
 
@@ -51,67 +61,118 @@ class ControllerWindow:
     # ------------------------------------------------------------ controller page
 
     def show_controller(self) -> None:
-        if self.param_frm is not None:
-            self.param_frm.grid_forget()
         root = self.root
-        root.wm_minsize(width=650, height=550)
+        root.title("ECRIT Controller" + self.title_suffix)
+        root.wm_minsize(width=900, height=560)
         root.grid_columnconfigure(0, weight=1)
         root.grid_rowconfigure(0, weight=1)
 
-        control_frm = tk.Frame(root, bg=theme.BG, border=5, padx=20, pady=20)
-        control_frm.grid(column=0, row=0)
-        control_frm.grid_columnconfigure(list(range(12)), weight=2)
-        control_frm.grid_rowconfigure(list(range(12)), weight=2)
-        btn_frm = tk.Frame(root, bg=theme.PANEL, border=5, padx=20, pady=20)
-        btn_frm.grid(column=0, row=1, ipadx=150)
-        btn_frm.grid_columnconfigure(list(range(15)), weight=1)
-        self.controller_frames = [control_frm, btn_frm]
+        frm = tk.Frame(root, bg=theme.BG, padx=24, pady=18)
+        frm.grid(row=0, column=0, sticky="nsew")
+        frm.grid_columnconfigure(1, weight=1)
+        frm.grid_rowconfigure(0, weight=1)
+        self.controller_frm = frm
+        left = tk.Frame(frm, bg=theme.BG)
+        left.grid(row=0, column=0, sticky="nw", padx=(0, 28))
+        right = tk.Frame(frm, bg=theme.BG)
+        right.grid(row=0, column=1, sticky="nsew")
 
-        tk.Button(control_frm, text="Home", width=5, command=self._home).grid(row=3, column=0, padx=(0, 100))
+        # 1: where the head is, and moving it.
+        self._step_heading(left, 0, "1", "Move the Head")
+        readout = tk.Frame(left, bg=theme.CARD, padx=14, pady=8)
+        readout.grid(row=1, column=0, sticky="ew", pady=(0, 12))
+        self.axis_labels = {}
+        for col, axis in enumerate(("x", "y", "z")):
+            tk.Label(readout, text=axis.upper(), bg=theme.CARD, fg=theme.SUBTLE, font="Helvetica 11 bold") \
+                .grid(row=0, column=2 * col, padx=(0 if col == 0 else 14, 6))
+            value = tk.Label(readout, bg=theme.CARD, fg="white", font="Helvetica 16 bold", width=6, anchor="w")
+            value.grid(row=0, column=2 * col + 1, sticky="w")
+            self.axis_labels[axis] = value
 
-        ttk.Label(control_frm, text="Select Printer Step Size (mm):").grid(row=3, column=1, padx=5, pady=5)
+        steps = tk.Frame(left, bg=theme.BG)
+        steps.grid(row=2, column=0, sticky="w", pady=(0, 12))
+        ttk.Label(steps, text="Step").grid(row=0, column=0, padx=(0, 10))
         for i, (label, value) in enumerate(STEP_SIZES):
-            ttk.Radiobutton(control_frm, text=label, value=value, variable=self.step) \
-                .grid(row=4 + i, column=1, sticky="w", padx=5, pady=5)
+            tk.Radiobutton(steps, text=label, value=value, variable=self.step, indicatoron=False, width=4,
+                           font="Helvetica 11 bold", bg=theme.CARD, fg="white", selectcolor=theme.ACCENT,
+                           activebackground=theme.CARD_LINE, activeforeground="white", relief="flat",
+                           offrelief="flat", bd=0, highlightthickness=0, pady=5) \
+                .grid(row=0, column=1 + i, padx=(0, 4))
+        ttk.Label(steps, text="mm").grid(row=0, column=1 + len(STEP_SIZES), padx=(6, 0))
 
-        # X/Y pad. Y is flipped: the up arrow moves the bed away (-Y).
-        xy_frm = tk.Frame(control_frm, bg=theme.PAD, padx=20, border=5, relief="ridge")
-        xy_frm.grid(column=7, row=4, rowspan=20, ipady=2)
-        ttk.Label(xy_frm, text="x-axis").grid(row=5, column=2, padx=5, pady=5)
-        self._jog_button(xy_frm, "←", "x", -1).grid(row=5, column=3, padx=5, pady=5)
-        self._jog_button(xy_frm, "→", "x", +1).grid(row=5, column=5, padx=5, pady=5)
-        self._jog_button(xy_frm, "↑", "y", -1).grid(row=4, column=4, padx=5, pady=5)
-        self._jog_button(xy_frm, "↓", "y", +1).grid(row=6, column=4, padx=5, pady=5)
-        ttk.Label(xy_frm, text="y-axis").grid(row=7, column=4, padx=5, pady=5)
+        # X/Y pad and Z pad. Y is flipped: the up arrow moves the bed away (-Y).
+        pads = tk.Frame(left, bg=theme.BG)
+        pads.grid(row=3, column=0, sticky="w", pady=(0, 12))
+        xy = tk.Frame(pads, bg=theme.BG)
+        xy.grid(row=0, column=0)
+        self._jog_button(xy, "\u25B2", "y", -1).grid(row=0, column=1, padx=2, pady=2)
+        self._jog_button(xy, "\u25C0", "x", -1).grid(row=1, column=0, padx=2, pady=2)
+        self._pad_label(xy, "X/Y").grid(row=1, column=1)
+        self._jog_button(xy, "\u25B6", "x", +1).grid(row=1, column=2, padx=2, pady=2)
+        self._jog_button(xy, "\u25BC", "y", +1).grid(row=2, column=1, padx=2, pady=2)
+        z = tk.Frame(pads, bg=theme.BG)
+        z.grid(row=0, column=1, padx=(36, 0))
+        self._jog_button(z, "\u25B2", "z", +1).grid(row=0, column=0, padx=2, pady=2)
+        self._pad_label(z, "Z").grid(row=1, column=0)
+        self._jog_button(z, "\u25BC", "z", -1).grid(row=2, column=0, padx=2, pady=2)
 
-        z_frm = tk.Frame(control_frm, bg=theme.PAD, padx=20, border=5, relief="ridge")
-        z_frm.grid(column=8, row=4, rowspan=20, ipady=20)
-        self._jog_button(z_frm, "➚", "z", +1).grid(row=4, column=7, padx=20, pady=5)
-        self._jog_button(z_frm, "➘", "z", -1).grid(row=6, column=7, padx=20, pady=5)
-        ttk.Label(z_frm, text="z-axis").grid(row=7, column=7, padx=5, pady=5, sticky="s")
+        moves = tk.Frame(left, bg=theme.BG)
+        moves.grid(row=4, column=0, sticky="w", pady=(0, 20))
+        theme.button(moves, "Home", self._home, width=8).grid(row=0, column=0, padx=(0, 6))
+        theme.button(moves, "Go To Start Point", self._go_to_start_point).grid(row=0, column=1)
 
-        self.position_label = tk.Label(btn_frm, fg="white", bg=theme.PANEL, font="Helvetica")
-        self.position_label.grid(row=9, column=1, padx=5, pady=15)
-        tk.Button(btn_frm, text="Probe Baseline Height", width=20, command=self._probe_baseline) \
-            .grid(row=10, column=1, padx=5, pady=5)
-        tk.Button(btn_frm, text="Set Baseline Height", width=20, command=self._set_baseline) \
-            .grid(row=10, column=2, padx=5, pady=5)
-        tk.Button(btn_frm, text="Go To Start Point", width=20, command=self._go_to_start_point) \
-            .grid(row=11, column=1, padx=5, pady=5)
+        # 2: the surface height.
+        self._step_heading(left, 5, "2", "Baseline Height")
+        self.baseline_label = tk.Label(left, bg=theme.BG, font="Helvetica 13 bold", anchor="w")
+        self.baseline_label.grid(row=6, column=0, sticky="w", padx=(30, 0), pady=(0, 8))
+        baseline = tk.Frame(left, bg=theme.BG)
+        baseline.grid(row=7, column=0, sticky="w", padx=(30, 0))
+        theme.button(baseline, "Probe Baseline Height", self._probe_baseline).grid(row=0, column=0, padx=(0, 6))
+        theme.button(baseline, "Set Baseline Height", self._set_baseline).grid(row=0, column=1)
+        tk.Label(left, text="Probe lowers the electrode until it touches the cathode.\n"
+                            "Set takes the head's current Z.",
+                 bg=theme.BG, fg=theme.SUBTLE, justify="left", font="Helvetica 10") \
+            .grid(row=8, column=0, sticky="w", padx=(30, 0), pady=(6, 0))
 
-        self.points_label = tk.Label(btn_frm, fg="white", bg=theme.PANEL, font="Helvetica")
-        self.points_label.grid(row=9, column=8, padx=5, pady=15)
-        self.set_point_btn = tk.Button(btn_frm, text="Set Geometric Area", width=20, command=self._add_point)
-        self.set_point_btn.grid(row=10, column=8, padx=5, pady=5)
-        self.undo_btn = tk.Button(btn_frm, text="↩ Undo Geometric Area", command=self._undo_point)
-        self.undo_btn.grid(row=11, column=8)
+        # 3: the points to plate at, in run order.
+        right.grid_columnconfigure(0, weight=1)
+        right.grid_rowconfigure(1, weight=1)
+        heading = tk.Frame(right, bg=theme.BG)
+        heading.grid(row=0, column=0, sticky="ew")
+        heading.grid_columnconfigure(1, weight=1)
+        self._step_heading(heading, 0, "3", "Plating Points")
+        self.points_label = tk.Label(heading, bg=theme.BG, fg=theme.SUBTLE)
+        self.points_label.grid(row=0, column=1, sticky="e", pady=(0, 8))
+        config = self.session.config
+        self.point_map = PointMap(right, bed=(config.x_limit, config.y_limit),
+                                  invert_x=config.map_invert_x, invert_y=config.map_invert_y)
+        self.point_map.grid(row=1, column=0, sticky="nsew")
 
-        tk.Button(btn_frm, text="Next", width=20, command=self._next, bg=theme.ACCENT, fg="white",
-                  font="Helvetica 10 bold").grid(row=12, column=9, pady=(50, 0), ipadx=10, padx=(75, 0))
+        self.point_list = PointList(right, on_delete=self._delete_point, on_move=self._move_point,
+                                    on_select=self._show_map)
+        self.point_list.grid(row=2, column=0, sticky="ew", pady=(10, 0))
+
+        point_buttons = tk.Frame(right, bg=theme.BG)
+        point_buttons.grid(row=3, column=0, sticky="ew", pady=(8, 0))
+        point_buttons.grid_columnconfigure(2, weight=1)
+        self.set_point_btn = theme.button(point_buttons, "+ Add Point Here", self._add_point)
+        self.set_point_btn.grid(row=0, column=0, padx=(0, 6))
+        self.undo_btn = theme.button(point_buttons, "", self._undo_points, width=13)
+        self.undo_btn.grid(row=0, column=1)
+        tk.Label(point_buttons, text="Drag \u2261 to reorder, \u2715 to remove", bg=theme.BG, fg=theme.SUBTLE,
+                 font="Helvetica 10").grid(row=0, column=2, sticky="e")
+
+        tk.Frame(frm, height=1, bg=theme.CARD_LINE).grid(row=1, column=0, columnspan=2, sticky="ew", pady=(18, 14))
+        theme.accent_button(frm, "Next: Parameters \u2192", self._next) \
+            .grid(row=2, column=0, columnspan=2, sticky="e", ipadx=10, ipady=4)
         self._refresh()
 
     def _jog_button(self, parent, text, axis, sign) -> tk.Button:
-        return tk.Button(parent, text=text, width=2, command=lambda: self._jog(axis, sign))
+        return theme.button(parent, text, lambda: self._jog(axis, sign), width=3, font="Helvetica 14")
+
+    @staticmethod
+    def _pad_label(parent: tk.Misc, text: str) -> tk.Label:
+        return tk.Label(parent, text=text, bg=theme.BG, fg=theme.SUBTLE, font="Helvetica 11 bold")
 
     def _device(self, fn, on_done=None) -> None:
         """Queue a session call on the device thread, then refresh the labels."""
@@ -153,79 +214,155 @@ class ControllerWindow:
 
 
     def _add_point(self) -> None:
-        def done(added):
-            if not added:
-                log.info("A point is already set at that position")
-        self._device(self.session.add_point, done)
+        def work():
+            before = list(self.session.points)
+            return before if self.session.add_point() else None
 
-    def _undo_point(self) -> None:
-        self._device(self.session.undo_point, lambda p: log.info("Removed point %s", p))
+        def done(before):
+            if before is None:
+                log.info("A point is already set at that position")
+            else:
+                self._remember_points("Add", before)
+        self._device(work, done)
+
+    # Deleting, reordering and undoing only touch the session's list, so they
+    # run here rather than on the device thread.
+    def _delete_point(self, index: int) -> None:
+        before = list(self.session.points)
+        log.info("Removed point %d %s", index + 1, self.session.remove_point(index))
+        self._remember_points("Delete", before)
+        self._refresh()
+
+    def _move_point(self, index: int, to: int, first: bool) -> None:
+        """One step of a drag in the list. The list has already moved the row."""
+        if first:
+            self._remember_points("Reorder", list(self.session.points))
+        self.session.move_point(index, to)
+        self._refresh()
+
+    def _remember_points(self, action: str, before: List[Tuple[float, float]]) -> None:
+        self.points_history.append((action, before))
+        del self.points_history[:-50]
+
+    def _undo_points(self) -> None:
+        if self.points_history:
+            action, before = self.points_history.pop()
+            self.session.points[:] = before
+            log.info("Undid %s", action.lower())
+            self._refresh()
+
+    def _show_map(self) -> None:
+        pos = self.session.position
+        self.point_map.show(self.session.points, (pos["x"], pos["y"]), self.point_list.selected())
 
     def _refresh(self) -> None:
-        if not self.controller_frames or not self.position_label.winfo_exists():
+        if self.controller_frm is None or not self.controller_frm.winfo_exists():
             return
-        pos = self.session.position
-        baseline = f"{self.session.baseline_z:g}" if self.session.baseline_set else "not found"
-        self.position_label.config(text=f"X {pos['x']:g}   Y {pos['y']:g}   Z {pos['z']:g}\nBaseline Z: {baseline}")
-        count = len(self.session.points)
-        self.points_label.config(text=f"{count} points set" if count else "0")
-        self.undo_btn.config(state="normal" if count else "disabled")
+        s = self.session
+        for axis, label in self.axis_labels.items():
+            label.config(text=f"{s.position[axis]:g}")
+        if s.baseline_set:
+            self.baseline_label.config(text=f"Baseline Z {s.baseline_z:g}", fg="white")
+        else:
+            self.baseline_label.config(text="Baseline not set", fg=theme.WARN)
+
+        count = len(s.points)
+        self.points_label.config(text=f"{count} point{'' if count == 1 else 's'}")
+        self.point_list.set_points(s.points)
+        if self.points_history:
+            self.undo_btn.config(text=f"\u21A9 Undo {self.points_history[-1][0]}", state="normal")
+        else:
+            self.undo_btn.config(text="\u21A9 Undo", state="disabled")
         # Greyed out until a baseline is set, as a hint. Still clickable.
-        self.set_point_btn.config(fg="black" if self.session.baseline_set or count else theme.MUTED)
+        self.set_point_btn.config(fg="white" if s.baseline_set or count else theme.MUTED)
+        self._show_map()
 
     def _next(self) -> None:
         if not self.session.points:
             messagebox.showwarning(title="Wait!", message="Cannot Set Parameters Without Setting ALL Geometric Areas!")
             return
-        for frm in self.controller_frames:
-            frm.destroy()
-        self.controller_frames = []
+        self.controller_frm.destroy()
+        self.controller_frm = None
         self.show_params()
 
     # ------------------------------------------------------------ parameter page
 
     def show_params(self) -> None:
         s = self.session
+        self.root.title("ECRIT Plating Parameters" + self.title_suffix)
         self.root.wm_minsize(width=600, height=200)
-        frm = ttk.Frame(self.root, style="TFrame")
+        frm = tk.Frame(self.root, bg=theme.BG, padx=24, pady=18)
         frm.grid(row=0, column=0)
+        frm.grid_columnconfigure(0, weight=1)
         self.param_frm = frm
 
+        self._step_heading(frm, 0, "1", "Mode")
+        cards = tk.Frame(frm, bg=theme.BG)
+        cards.grid(row=1, column=0, sticky="ew", pady=(0, 16))
+        cards.grid_columnconfigure((0, 1), weight=1, uniform="mode")
+        self.mode_cards = {}
+        for col, (current_mode, title, detail) in enumerate(MODES):
+            card = ModeCard(cards, title, detail, command=lambda m=current_mode: self._set_mode(m))
+            card.grid(row=0, column=col, sticky="nsew", padx=(0, 10) if col == 0 else 0)
+            self.mode_cards[current_mode] = card
+
+        self._step_heading(frm, 2, "2", "Parameters")
+        fields = tk.Frame(frm, bg=theme.BG)
+        fields.grid(row=3, column=0, sticky="ew", padx=(30, 0))
+        # Current and voltage share the first row and only the selected
+        # mode's is shown, so switching back and forth keeps what was typed.
+        rows = (("current", 0, "Current", s.target_current, "mA"),
+                ("voltage", 0, "Voltage", s.target_voltage, "V"),
+                ("duration", 1, "Time at each point", s.duration, "s"),
+                ("distance", 2, "WE\u2013CE distance", s.distance, "mm"))
         self.inputs = {}
-        rows = (("distance", "Distance Between WE and CE (mm):", s.distance),
-                ("duration", "Electrodeposition Time (sec):", s.duration),
-                ("current", "Set a Current (mA):", s.target_current),
-                ("voltage", "Set a Voltage (V):", s.target_voltage))
-        self.input_labels = {}
-        for row, (key, text, value) in enumerate(rows):
-            label = ttk.Label(frm, text=text)
-            label.grid(row=row, column=0, sticky="w", padx=5, pady=5)
-            entry = ttk.Entry(frm, width=8)
-            entry.insert(0, f"{value:g}")
-            entry.grid(row=row, column=1, sticky="w", padx=5, pady=5)
+        self.input_vars = {}  # kept: Tk drops a variable once Python frees it
+        self.hints = {}
+        self.input_rows = {}
+        for key, row, text, value, unit in rows:
+            setpoint = key in ("current", "voltage")
+            label = tk.Label(fields, text=text, bg=theme.BG, fg="white",
+                             font=("Helvetica", 12, "bold") if setpoint else theme.FONT)
+            label.grid(row=row, column=0, sticky="w", padx=(0, 12), pady=4)
+            var = tk.StringVar(frm, f"{value:g}")
+            var.trace_add("write", lambda *_: self._update_hints())
+            entry = ttk.Entry(fields, width=8, font=theme.FONT, textvariable=var)
+            entry.grid(row=row, column=1, sticky="w", pady=4)
+            unit_label = ttk.Label(fields, text=unit, width=3)
+            unit_label.grid(row=row, column=2, sticky="w", padx=(6, 14))
+            hint = tk.Label(fields, text="", bg=theme.BG, fg=theme.SUBTLE, anchor="w")
+            hint.grid(row=row, column=3, sticky="w")
             self.inputs[key] = entry
-            self.input_labels[key] = label
+            self.input_vars[key] = var
+            self.hints[key] = hint
+            self.input_rows[key] = (label, entry, unit_label, hint)
 
         self.reference_var = tk.BooleanVar(frm, s.reference)
         # A classic Checkbutton: the ttk one barely changes when ticked on this background.
-        tk.Checkbutton(frm, text="Use Reference Electrode (3-electrode cell)", variable=self.reference_var,
+        tk.Checkbutton(fields, text="Use Reference Electrode (3-electrode cell)", variable=self.reference_var,
                        command=self._set_reference, font=theme.FONT, bg=theme.BG, fg="white",
                        selectcolor=theme.BG, activebackground=theme.BG, activeforeground="white",
-                       highlightthickness=0).grid(row=len(rows), column=0, columnspan=2,
-                                                  sticky="w", padx=5, pady=5)
+                       highlightthickness=0).grid(row=3, column=0, columnspan=4, sticky="w", pady=(8, 0))
 
-        ttk.Label(frm, text="Set Mode:").grid(row=0, columnspan=2, column=8, padx=40, pady=5)
-        self.voltage_btn = tk.Button(frm, text="Voltage Mode", width=10, command=lambda: self._set_mode(False))
-        self.voltage_btn.grid(row=1, column=8, padx=(15, 5), pady=5, ipadx=2)
-        self.current_btn = tk.Button(frm, text="Current Mode", width=10, command=lambda: self._set_mode(True))
-        self.current_btn.grid(row=1, column=9, padx=5, pady=5, ipadx=2)
-
-        self.start_btn = tk.Button(frm, text="▶ START ELECTROPLATING!", command=self._start_run,
-                                   bg=theme.ACCENT, fg="white", font="Helvetica 10 bold")
-        self.start_btn.grid(row=11, column=8, ipadx=5, columnspan=3, pady=(15, 15))
-        self.back_btn = tk.Button(frm, text="Go\nBack", width=10, command=self._back, bg=theme.BACK, fg="white")
-        self.back_btn.grid(column=0, row=11, pady=(15, 10), sticky="w", padx=(10, 0))
+        tk.Frame(frm, height=1, bg=theme.CARD_LINE).grid(row=4, column=0, sticky="ew", pady=(18, 14))
+        buttons = tk.Frame(frm, bg=theme.BG)
+        buttons.grid(row=5, column=0, sticky="ew")
+        buttons.grid_columnconfigure(1, weight=1)
+        self.back_btn = theme.button(buttons, "\u2190 Back", self._back, width=10, bg=theme.BACK,
+                                     activebackground=theme.BACK)
+        self.back_btn.grid(row=0, column=0, sticky="w", ipady=4)
+        self.start_btn = theme.accent_button(buttons, "\u25B6 Start Electroplating", self._start_run)
+        self.start_btn.grid(row=0, column=2, sticky="e", ipadx=10, ipady=4)
         self._apply_mode()
+
+    @staticmethod
+    def _step_heading(parent: tk.Frame, row: int, number: str, text: str) -> None:
+        heading = tk.Frame(parent, bg=theme.BG)
+        heading.grid(row=row, column=0, sticky="w", pady=(0, 8))
+        tk.Label(heading, text=number, width=2, bg=theme.ACCENT, fg="white",
+                 font="Helvetica 11 bold").grid(row=0, column=0)
+        tk.Label(heading, text=text, bg=theme.BG, fg="white",
+                 font="Helvetica 13 bold").grid(row=0, column=1, padx=(8, 0))
 
     def _set_reference(self) -> None:
         self.session.reference = self.reference_var.get()
@@ -236,11 +373,38 @@ class ControllerWindow:
 
     def _apply_mode(self) -> None:
         current = self.session.current_mode
-        for key, enabled in (("current", current), ("voltage", not current)):
-            self.inputs[key].config(state="normal" if enabled else "disabled")
-            self.input_labels[key].config(state="normal" if enabled else "disabled")
-        self.current_btn.config(bg=theme.SELECTED if current else "white")
-        self.voltage_btn.config(bg="white" if current else theme.SELECTED)
+        for mode, card in self.mode_cards.items():
+            card.select(mode == current)
+        shown, hidden = ("current", "voltage") if current else ("voltage", "current")
+        for widget in self.input_rows[hidden]:
+            widget.grid_remove()
+        for widget in self.input_rows[shown]:
+            widget.grid()
+        self._update_hints()
+
+    def _number(self, key: str) -> Optional[float]:
+        try:
+            return float(self.inputs[key].get().strip())
+        except ValueError:
+            return None
+
+    def _update_hints(self) -> None:
+        """What the numbers add up to, or which one is not a number."""
+        s = self.session
+        # None: not a number.
+        hints = {key: None if self._number(key) is None else "" for key in self.hints}
+        duration = self._number("duration")
+        if duration is not None:
+            n = len(s.points)
+            hints["duration"] = f"{duration * n:g} s in total, {n} point{'' if n == 1 else 's'}"
+        distance = self._number("distance")
+        if distance is not None:
+            baseline = (f"baseline {s.baseline_z:g}" if s.baseline_set
+                        else f"baseline not set, Z {s.baseline_z:g} from config")
+            hints["distance"] = f"plates at Z {s.baseline_z + distance:g} ({baseline})"
+        for key, text in hints.items():
+            self.hints[key].config(text="not a number" if text is None else text,
+                                   fg=theme.WARN if text is None else theme.SUBTLE)
 
     def _back(self) -> None:
         self._read_inputs(quiet=True)
@@ -277,40 +441,68 @@ class ControllerWindow:
 
         self.start_btn.config(state="disabled")
         self.back_btn.config(state="disabled")
-        self._open_run_window(len(params.points), params.duration, params.reference)
+        self._open_run_window(params)
         self.run = PlatingRun(self.session.rig, params,
                               on_event=lambda kind, payload: self.tasks.post(lambda: self._on_run_event(kind, payload)))
         self.tasks.submit(self.run.run, self._run_finished, self._run_crashed)
 
     # ------------------------------------------------------------ the run
 
-    def _open_run_window(self, points: int, duration: float, reference: bool) -> None:
-        top = tk.Toplevel(self.root)
-        top.title("Electroplating")
+    def _open_run_window(self, params: RunParams) -> None:
+        top = tk.Toplevel(self.root, bg=theme.BG)
+        top.title("Electroplating Run" + self.title_suffix)
+        top.transient(self.root)
+        top.resizable(False, False)
         top.protocol("WM_DELETE_WINDOW", self._cancel)
-        frm = ttk.Frame(top, style="TFrame")
-        frm.grid()
+        frm = tk.Frame(top, bg=theme.BG, padx=22, pady=16)
+        frm.grid(sticky="nsew")
         self.run_window = top
-        self.run_points = points
-        self.run_duration = duration
+        self.run_points = len(params.points)
+        self.run_duration = params.duration
+
+        self.run_heading = tk.Label(frm, text="Starting", bg=theme.BG, fg="white", font="Helvetica 15 bold",
+                                    anchor="w")
+        self.run_heading.grid(row=0, column=0, columnspan=3, sticky="w")
+        target = (f"constant current, {params.target_current:g} mA" if params.current_mode
+                  else f"constant voltage, {params.target_voltage:g} V")
+        tk.Label(frm, text=f"{self.run_points} point{'' if self.run_points == 1 else 's'}, "
+                           f"{params.duration:g} s each, {target}",
+                 bg=theme.BG, fg=theme.SUBTLE, anchor="w").grid(row=1, column=0, columnspan=3, sticky="w")
+        self.run_state = tk.Label(frm, text="Starting...", bg=theme.BG, fg=theme.SUBTLE, anchor="w")
+        self.run_state.grid(row=2, column=0, columnspan=3, sticky="w", pady=(0, 12))
+
+        tiles = [("current", "Current"), ("voltage", "Voltage"), ("target", "PSU setpoint")]
+        if params.reference:
+            tiles.append(("reference", "WE vs RE"))
+        # One row of three, or two rows of two with the reference electrode.
+        columns = 3 if len(tiles) == 3 else 2
+        frm.grid_columnconfigure(tuple(range(columns)), weight=1, uniform="readout")
         self.run_labels = {}
-        rows = (("state", "Starting..."), ("current", "Current: no reading yet"),
-                ("voltage", "Output Voltage: no reading yet"), ("target", "Target Voltage: no reading yet"))
-        if reference:
-            rows += (("reference", "WE vs RE: no reading yet"),)
-        rows += (("time", "Time left: no reading yet"),)
-        for row, (key, text) in enumerate(rows):
-            label = tk.Label(frm, text=text)
-            label.grid(row=row, column=0, sticky="w", padx=5, pady=5)
-            self.run_labels[key] = label
-        self.cancel_btn = tk.Button(frm, text="Cancel Experiment", bg=theme.CANCEL, command=self._cancel)
-        self.cancel_btn.grid(row=len(rows), column=0, padx=20, pady=5)
+        for i, (key, title) in enumerate(tiles):
+            value = readout_tile(frm, title)
+            column = i % columns
+            value.master.grid(row=3 + i // columns, column=column, sticky="nsew", pady=(0, 8),
+                              padx=(0, 8) if column < columns - 1 else 0)
+            self.run_labels[key] = value
+
+        progress = tk.Frame(frm, bg=theme.BG)
+        progress.grid(row=5, column=0, columnspan=3, sticky="ew", pady=(6, 0))
+        progress.grid_columnconfigure(0, weight=1)
+        self.run_progress = ttk.Progressbar(progress, style="Run.Horizontal.TProgressbar", maximum=params.duration)
+        self.run_progress.grid(row=0, column=0, sticky="ew")
+        self.run_time = tk.Label(progress, text="", bg=theme.BG, fg=theme.SUBTLE, width=12, anchor="e")
+        self.run_time.grid(row=0, column=1, sticky="e")
+
+        tk.Frame(frm, height=1, bg=theme.CARD_LINE).grid(row=6, column=0, columnspan=3, sticky="ew", pady=(14, 12))
+        self.cancel_btn = theme.button(frm, "\u25A0 Cancel Experiment", self._cancel, bg=theme.CANCEL,
+                                       activebackground=theme.CANCEL, font="Helvetica 11 bold")
+        self.cancel_btn.grid(row=7, column=0, columnspan=3, sticky="e", ipadx=10, ipady=4)
 
     def _cancel(self) -> None:
         if self.run is None:
             return
         self.cancel_btn.config(state="disabled", bg=theme.CANCELLED)
-        self.run_labels["state"].config(text="Cancelling...")
+        self.run_state.config(text="Cancelling: output off, the head stays where it is.")
         self.run.stop()
 
     def _on_run_event(self, kind: str, payload) -> None:
@@ -318,18 +510,22 @@ class ControllerWindow:
             return
         labels = self.run_labels
         if kind == "state":
-            labels["state"].config(text=str(payload))
+            self.run_state.config(text=str(payload))
         elif kind == "point":
             i, x, y = payload
-            labels["state"].config(text=f"Point {i + 1}/{self.run_points} at ({x:g}, {y:g})")
+            self.run_heading.config(text=f"Point {i + 1} of {self.run_points}")
+            self.run_state.config(text=f"Plating at X {x:g}, Y {y:g}")
+            self.run_progress.config(value=0)
+            self.run_time.config(text=f"{self.run_duration:.0f} s left")
         elif kind == "sample":
             s: Sample = payload
-            labels["current"].config(text=f"current: {s.current_mA:g}")
-            labels["voltage"].config(text=f"voltage: {s.voltage_V:g}")
-            labels["target"].config(text=f"target voltage: {s.target_V:g}")
+            labels["current"].config(text=f"{s.current_mA:.2f} mA")
+            labels["voltage"].config(text=f"{s.voltage_V:.3f} V")
+            labels["target"].config(text=f"{s.target_V:.3f} V")
             if "reference" in labels:
-                labels["reference"].config(text=f"WE vs RE: {describe_reference(s.we_vs_re_V)}")
-            labels["time"].config(text=f"time left: {max(0, int(self.run_duration - s.t_point))}")
+                labels["reference"].config(text=describe_reference(s.we_vs_re_V))
+            self.run_progress.config(value=min(s.t_point, self.run_duration))
+            self.run_time.config(text=f"{max(0, int(self.run_duration - s.t_point))} s left")
 
     def _close_run_window(self) -> None:
         self.run = None
@@ -398,12 +594,47 @@ class ControllerWindow:
             log.warning("No plot: %s", e)
             return
         top = tk.Toplevel(self.root)
-        top.title(f"Run {result.timestamp}")
+        top.title(f"Run Results {result.timestamp}" + self.title_suffix)
         fig = make_figure(result.samples, result.params.points, result.params.duration)
         canvas = FigureCanvasTkAgg(fig, master=top)
         canvas.draw()
         NavigationToolbar2Tk(canvas, top).update()
         canvas.get_tk_widget().pack(fill="both", expand=True)
+
+
+def readout_tile(parent: tk.Misc, title: str) -> tk.Label:
+    """A live value in a dark box with a small title above it. Returns the
+    value label; grid its master (the box)."""
+    tile = tk.Frame(parent, bg=theme.CARD, padx=14, pady=8)
+    tk.Label(tile, text=title, bg=theme.CARD, fg=theme.SUBTLE, font="Helvetica 10 bold", anchor="w") \
+        .grid(row=0, column=0, sticky="w")
+    value = tk.Label(tile, text="-", bg=theme.CARD, fg="white", font="Helvetica 17 bold", anchor="w", width=9)
+    value.grid(row=1, column=0, sticky="w")
+    return value
+
+
+class ModeCard(tk.Frame):
+    """One of the two mode choices: a large clickable card, filled with the
+    accent colour and marked with a dot when it is the selected one."""
+
+    def __init__(self, parent: tk.Misc, title: str, detail: str, command):
+        super().__init__(parent, cursor="hand2", highlightthickness=2, padx=14, pady=10)
+        self.mark = tk.Label(self, font=("Helvetica", 16))
+        self.mark.grid(row=0, column=0, rowspan=2, sticky="n", padx=(0, 10))
+        self.title = tk.Label(self, text=title, font=("Helvetica", 13, "bold"), anchor="w")
+        self.title.grid(row=0, column=1, sticky="w")
+        self.detail = tk.Label(self, text=detail, anchor="w", justify="left")
+        self.detail.grid(row=1, column=1, sticky="w")
+        for widget in (self, self.mark, self.title, self.detail):
+            widget.bind("<Button-1>", lambda _event: command())
+
+    def select(self, selected: bool) -> None:
+        bg = theme.ACCENT if selected else theme.CARD
+        line = theme.CARD_ON if selected else theme.CARD_LINE
+        self.config(bg=bg, highlightbackground=line, highlightcolor=line)
+        self.mark.config(text="\u25CF" if selected else "\u25CB", bg=bg, fg="white" if selected else theme.SUBTLE)
+        self.title.config(bg=bg, fg="white" if selected else theme.SUBTLE)
+        self.detail.config(bg=bg, fg="white" if selected else theme.MUTED)
 
 
 class ProbeWindow:
@@ -412,19 +643,28 @@ class ProbeWindow:
 
     def __init__(self, controller: ControllerWindow, settings: ProbeSettings):
         self.controller = controller
-        top = tk.Toplevel(controller.root)
-        top.title("Probing Baseline Height")
+        top = tk.Toplevel(controller.root, bg=theme.BG)
+        top.title("Probing Baseline Height" + controller.title_suffix)
         top.transient(controller.root)
+        top.resizable(False, False)
         top.protocol("WM_DELETE_WINDOW", self._cancel)
-        frm = ttk.Frame(top, style="TFrame", padding=10)
+        frm = tk.Frame(top, bg=theme.BG, padx=22, pady=16)
         frm.grid()
+        frm.grid_columnconfigure((0, 1), weight=1, uniform="readout")
         self.top = top
-        self.state = ttk.Label(frm, text="Starting...")
-        self.state.grid(row=0, column=0, sticky="w", padx=5, pady=5)
-        self.reading = ttk.Label(frm, text="Z: -   current: -")
-        self.reading.grid(row=1, column=0, sticky="w", padx=5, pady=5)
-        self.cancel_btn = tk.Button(frm, text="Cancel", bg=theme.CANCEL, command=self._cancel)
-        self.cancel_btn.grid(row=2, column=0, padx=20, pady=5)
+        tk.Label(frm, text="Searching for the surface", bg=theme.BG, fg="white", font="Helvetica 15 bold") \
+            .grid(row=0, column=0, columnspan=2, sticky="w")
+        self.state = tk.Label(frm, text="Starting...", bg=theme.BG, fg=theme.SUBTLE, anchor="w")
+        self.state.grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 12))
+        z_tile = readout_tile(frm, "Head Z")
+        z_tile.master.grid(row=2, column=0, sticky="nsew", padx=(0, 8))
+        current_tile = readout_tile(frm, "Current")
+        current_tile.master.grid(row=2, column=1, sticky="nsew")
+        self.z, self.current = z_tile, current_tile
+        tk.Frame(frm, height=1, bg=theme.CARD_LINE).grid(row=3, column=0, columnspan=2, sticky="ew", pady=(14, 12))
+        self.cancel_btn = theme.button(frm, "\u25A0 Cancel", self._cancel, bg=theme.CANCEL,
+                                       activebackground=theme.CANCEL, font="Helvetica 11 bold", width=10)
+        self.cancel_btn.grid(row=4, column=0, columnspan=2, sticky="e", ipady=4)
         top.grab_set()
 
         tasks = controller.tasks
@@ -444,11 +684,13 @@ class ProbeWindow:
             self.state.config(text=str(payload))
         elif kind == "step":
             z, reading = payload
-            current = "-" if reading.current_mA is None else f"{reading.current_mA:.3f} mA"
-            self.reading.config(text=f"Z: {z:g}   current: {current}   ({reading.state})")
+            self.z.config(text=f"{z:g}")
+            self.current.config(text="-" if reading.current_mA is None else f"{reading.current_mA:.3f} mA")
+            self.state.config(text=f"Probe: {reading.state}")
             self.controller._refresh()
         elif kind == "moving":
-            self.reading.config(text=f"Z: ~{payload:g}   (moving)")
+            self.z.config(text=f"~{payload:g}")
+            self.current.config(text="moving")
 
     def _close(self) -> None:
         if self.top.winfo_exists():

@@ -34,7 +34,7 @@ class App:
 
     def _build_start_menu(self) -> None:
         root = self.root
-        root.title("Electrochemistry Experiment Setup" + (" (simulated)" if self.sim else ""))
+        root.title("ECRIT Electroplating" + (" (simulated)" if self.sim else ""))
         root.grid_columnconfigure(0, weight=1)
         root.grid_rowconfigure(0, weight=1)
 
@@ -50,12 +50,11 @@ class App:
         self.ports_label.grid(row=2, column=0, pady=(0, 14))
         self._show_ports()
 
-        self.start_btn = tk.Button(frm, text="Start", command=self._start, width=22, bg=theme.ACCENT, fg="white",
-                                   font="Helvetica 10 bold")
+        self.start_btn = theme.accent_button(frm, "Start", self._start, width=22)
         self.start_btn.grid(row=3, column=0, sticky="ew", ipady=6, pady=3)
-        self.ports_btn = tk.Button(frm, text="Configure Ports", command=self._configure_ports, width=22)
+        self.ports_btn = theme.button(frm, "Configure Ports", self._configure_ports, width=22)
         self.ports_btn.grid(row=4, column=0, sticky="ew", ipady=2, pady=3)
-        tk.Button(frm, text="Quit", command=self.quit, width=22).grid(row=5, column=0, sticky="ew", ipady=2, pady=3)
+        theme.button(frm, "Quit", self.quit, width=22).grid(row=5, column=0, sticky="ew", ipady=2, pady=3)
         self.status = tk.Label(frm, text="", bg=theme.BG, fg="white")
         self.status.grid(row=6, column=0, pady=(10, 0))
 
@@ -91,8 +90,7 @@ class App:
     def _connected(self, session: Session) -> None:
         log.info("HAT on %s, printer on %s", session.rig.hat.port, session.rig.printer.port)
         self.start_frm.destroy()
-        self.root.title("Electroplating GUI" + (" (simulated)" if self.sim else ""))
-        self.controller = ControllerWindow(self.root, session, self.tasks, self.options)
+        self.controller = ControllerWindow(self.root, session, self.tasks, self.options, sim=self.sim)
 
     def _connect_failed(self, e: Exception) -> None:
         self.start_btn.config(state="normal")
@@ -121,13 +119,13 @@ class PortDialog(tk.Toplevel):
     /dev/serial/by-id/...) can be typed in. Test opens the two selected
     ports and says whether the right board answers on each."""
 
-    OK = "#2E7D32"
-    FAIL = "#C62828"
+    OK = theme.GOOD
+    FAIL = theme.BAD
 
     def __init__(self, parent: tk.Misc, options: Options, tasks: TaskRunner,
                  on_save: Optional[Callable[[], None]] = None):
-        super().__init__(parent)
-        self.title("Select Ports")
+        super().__init__(parent, bg=theme.BG)
+        self.title("Configure Ports")
         self.options = options
         self.tasks = tasks
         self.on_save = on_save
@@ -142,35 +140,42 @@ class PortDialog(tk.Toplevel):
         self.by_label: Dict[str, str] = {str(p): p.device for p in ports}
         labels = list(self.by_label)
 
-        body = tk.Frame(self)
-        body.grid(row=0, column=0, sticky="nsew", padx=16, pady=(14, 8))
         self.grid_columnconfigure(0, weight=1)
-        body.grid_columnconfigure(1, weight=1)
+        tk.Label(self, text="Serial Ports", bg=theme.BG, fg="white", font="Helvetica 15 bold", anchor="w") \
+            .grid(row=0, column=0, sticky="w", padx=22, pady=(16, 0))
+        tk.Label(self, text="Pick the port each board is on, or type a path. Test checks that the right "
+                            "board answers; Detect searches for both.",
+                 bg=theme.BG, fg=theme.SUBTLE, anchor="w", justify="left", wraplength=620) \
+            .grid(row=1, column=0, sticky="w", padx=22, pady=(2, 12))
 
+        body = tk.Frame(self, bg=theme.BG)
+        body.grid(row=2, column=0, sticky="nsew", padx=22)
+        body.grid_columnconfigure(1, weight=1)
         self.hat, self.hat_result = self._port_row(body, 0, "ECRIT-HAT (Arduino)", labels)
         self.printer, self.printer_result = self._port_row(body, 2, "Printer", labels)
         self._select(self.hat, options.arduino_port)
         self._select(self.printer, options.printer_port)
 
-        buttons = tk.Frame(self)
-        buttons.grid(row=1, column=0, sticky="ew", padx=16, pady=(0, 14))
+        self.status = tk.Label(self, text="", bg=theme.BG, fg="white", anchor="w", justify="left")
+        self.status.grid(row=3, column=0, sticky="ew", padx=22)
+        tk.Frame(self, height=1, bg=theme.CARD_LINE).grid(row=4, column=0, sticky="ew", padx=22, pady=(10, 12))
+        buttons = tk.Frame(self, bg=theme.BG)
+        buttons.grid(row=5, column=0, sticky="ew", padx=22, pady=(0, 16))
         buttons.grid_columnconfigure(2, weight=1)
-        self.detect_btn = tk.Button(buttons, text="Detect", width=8, command=self._detect)
-        self.detect_btn.grid(row=0, column=0, padx=(0, 6))
-        self.test_btn = tk.Button(buttons, text="Test", width=8, command=self._test)
-        self.test_btn.grid(row=0, column=1)
-        tk.Button(buttons, text="Cancel", width=8, command=self.destroy).grid(row=0, column=3, padx=(0, 6))
-        self.confirm_btn = tk.Button(buttons, text="Confirm", width=8, command=self._confirm,
-                                     bg=theme.ACCENT, fg="white")
-        self.confirm_btn.grid(row=0, column=4)
-        self.status = tk.Label(self, text="", anchor="w", justify="left")
-        self.status.grid(row=2, column=0, sticky="ew", padx=16, pady=(0, 10))
+        self.detect_btn = theme.button(buttons, "Detect", self._detect, width=8)
+        self.detect_btn.grid(row=0, column=0, padx=(0, 6), ipady=2)
+        self.test_btn = theme.button(buttons, "Test", self._test, width=8)
+        self.test_btn.grid(row=0, column=1, ipady=2)
+        theme.button(buttons, "Cancel", self.destroy, width=8).grid(row=0, column=3, padx=(0, 6), ipady=2)
+        self.confirm_btn = theme.accent_button(buttons, "Confirm", self._confirm, width=8)
+        self.confirm_btn.grid(row=0, column=4, ipady=2)
 
     def _port_row(self, parent: tk.Frame, row: int, name: str, labels: List[str]):
-        tk.Label(parent, text=name, anchor="w").grid(row=row, column=0, sticky="w", padx=(0, 10))
-        box = ttk.Combobox(parent, values=labels, width=60)
+        tk.Label(parent, text=name, bg=theme.BG, fg="white", font="Helvetica 11 bold", anchor="w") \
+            .grid(row=row, column=0, sticky="w", padx=(0, 12))
+        box = ttk.Combobox(parent, values=labels, width=60, font=("Helvetica", 11))
         box.grid(row=row, column=1, sticky="ew", pady=(4, 0))
-        result = tk.Label(parent, text="", anchor="w", justify="left", wraplength=480)
+        result = tk.Label(parent, text="", bg=theme.BG, anchor="w", justify="left", wraplength=480)
         result.grid(row=row + 1, column=1, sticky="w", pady=(0, 6))
         # A result is only good for the port it was taken on.
         clear = lambda _event: result.config(text="")
@@ -193,7 +198,7 @@ class PortDialog(tk.Toplevel):
         state = "disabled" if busy else "normal"
         for button in (self.detect_btn, self.test_btn, self.confirm_btn):
             button.config(state=state)
-        self.status.config(text=message, fg="black")
+        self.status.config(text=message, fg="white")
 
     def _show_result(self, label: tk.Label, check: Optional[PortCheck]) -> None:
         if check is None:

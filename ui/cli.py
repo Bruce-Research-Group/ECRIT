@@ -383,7 +383,7 @@ class Shell(cmd.Cmd):
         failures = self.failures
         try:
             done = bool(super().onecmd(line))
-        except (DeviceError, ValueError) as e:
+        except (DeviceError, ValueError, IndexError) as e:
             self.failures += 1
             print(f"error: {e}")
             done = False
@@ -518,9 +518,28 @@ class Shell(cmd.Cmd):
         removed = self.session.undo_point()
         print(f"removed {removed}" if removed else "no points to remove")
 
+    def do_delete(self, arg):
+        """delete <n>: remove point n (numbered as in points)."""
+        removed = self.session.remove_point(self._point_number(arg) - 1)
+        print(f"removed ({removed[0]:g}, {removed[1]:g}), {len(self.session.points)} point(s) left")
+
+    def do_reorder(self, arg):
+        """reorder <n> <to>: move point n to place <to> in the run order."""
+        words = arg.split()
+        if len(words) != 2:
+            raise ValueError("usage: reorder <n> <to>")
+        self.session.move_point(self._point_number(words[0]) - 1, self._point_number(words[1]) - 1)
+        self.do_points("")
+
+    def _point_number(self, text: str) -> int:
+        try:
+            return int(text.strip())
+        except ValueError:
+            raise ValueError(f"not a point number: {text.strip()!r}") from None
+
     def do_points(self, arg):
-        """points: list the geometric areas."""
-        for i, (x, y) in enumerate(self.session.points):
+        """points: list the geometric areas in run order, numbered from 1 as in the GUI."""
+        for i, (x, y) in enumerate(self.session.points, 1):
             print(f"{i}: ({x:g}, {y:g})")
         if not self.session.points:
             print("no points set")

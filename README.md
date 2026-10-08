@@ -91,27 +91,29 @@ With the ECRIT-HAT shield on an Uno R4 WiFi, upload `ECRIT_HAT/ECRIT_HAT.ino` in
 ![](Screenshots/PortMenu.png)
 
 Ensure that your experimental apparatus is setup according to the procedure given in the research paper.
-The up and down arrows labeled "z-axis" are used to move the printer head up and down. The "y-axis controls forwards and backwards and the "x-axis controls left and right. Under the “Select Printer Step Size” option, whatever number you choose determines the travel distance of the platinum electrode or the cell.
+Under "Move the Head", the arrows of the "Z" pad move the printer head up and down, and the "X/Y" pad moves forwards and backwards (Y) and left and right (X). The "Step" buttons set how far each press moves, in mm. The current position is shown above them.
 
-WARNING: If the number you choose from the “Select Printer Step Size” is more than the distance between your electrode and your cell, the electrode will crash into the cell. 
+WARNING: If the step you choose is more than the distance between your electrode and your cell, the electrode will crash into the cell. 
 
-3. Now use the arrow buttons to position the electrode attached to the printer head over the geometric surface area on the substrate, a little above the surface, then click "Probe Baseline Height". The head moves down until the electrode touches the substrate, records that height as the baseline, and lifts 1 mm. Then click "Set Geometric Area".
+3. Now use the arrow buttons to position the electrode attached to the printer head over the geometric surface area on the substrate, a little above the surface, then click "Probe Baseline Height". The head moves down until the electrode touches the substrate, records that height as the baseline, and lifts 1 mm. Then click "+ Add Point Here".
 
    "Probe Baseline Height" needs the ECRIT-HAT firmware and the power supply switched on, and the cell must be dry. While searching, the HAT drives the cell at 1 V behind a 10 mA limit and switches it off the moment current flows. The head moves down at 1 mm/s and stops the moment the HAT reports contact (it overshoots by about 0.2 mm), then backs off 0.5 mm and comes down again in 0.02 mm steps. On the rig this takes about 1 s per mm searched plus about 9 s, so start a few mm above the surface when you can. The `"probe"` settings in `config.json` change these numbers; `"speed": 0` there steps down 0.1 mm at a time instead of moving continuously (slower, about 3.7 s per mm).
 
    If it reports "No contact", the head went down `max_travel` mm (60 by default, in `config.json`'s `"probe"` settings) without current flowing: check that the electrode leads are connected. An open circuit looks exactly like empty space to the search, so the electrode may have been pressed into the substrate; lower `max_travel` to a few mm more than the gap you expect.
 
    To set the baseline by hand instead, jog the electrode until it just touches and click "Set Baseline Height": the head's current Z becomes the baseline.
-4. If you have multiple geometric surface areas on the substrate and your objective is to perform rasterable electrodeposition, use the arrow buttons to position the electrode perpendicularly to the next geometric surface area and click "Set Geometric Area". Repeat the perpendicular position setting and the "Set Geometric Area" for all the surface areas on the substrate.
-5. Click Next.
-6. Select Voltage or Current Mode for constant current or contant voltage.
+4. If you have multiple geometric surface areas on the substrate and your objective is to perform rasterable electrodeposition, use the arrow buttons to position the electrode perpendicularly to the next geometric surface area and click "+ Add Point Here". Repeat for all the surface areas on the substrate.
+
+   The points are plated in the order of the list under "Plating Points", and the map above it shows them numbered in that order, with the head as an orange cross. Drag a row by its ≡ to change the order, and click its ✕ (or select it and press Delete) to remove it. "Undo" takes back the last add, removal or reorder. The map shows +X to the right and +Y up; `"map_invert_x"` / `"map_invert_y"` in `config.json` flip an axis. In the shell, `points` lists them, `delete <n>` removes one and `reorder <n> <to>` moves one.
+5. Click "Next: Parameters".
+6. Under "Mode", click "Constant Current" or "Constant Voltage". The selected one is filled in.
 
 ![](Screenshots/ParameterMenu.png)
 
-7. The following experimental variables will be registered in the boxes (a) Input values for the distance between electrode and substrate (in millimeters). (b) The time the experiment should take at each point (in seconds). (c) Set either the current in milliAmperes or voltage in volts.
+7. Under "Parameters", enter (a) the current in milliamperes or the voltage in volts, depending on the mode, (b) the time to plate at each point (in seconds), and (c) the distance between the electrode and the substrate (in millimeters). The notes next to the boxes show the total time and the height the head plates at.
 
    For a three-electrode cell, tick "Use Reference Electrode" and connect the reference electrode to CN4. The run window then also shows the working electrode's potential against the reference ("WE vs RE"), the CSV gets a sixth column, "Potential WE vs RE" (V), and the plot gets a panel for it underneath. It needs the ECRIT-HAT firmware. A reading stuck at about -2.048 V means the reference input is open. Leave the box unticked for a two-electrode cell; the CSV then has the usual five columns. `"reference_electrode": true` in `config.json` ticks it by default, and on the command line it is `run --ref` or `ref on` in the shell.
-8. Click "START ELECTROPLATING"
+8. Click "Start Electroplating".
 9. Wait for the experiment to start and monitor the real-time results.
 
 ![](Screenshots/ActiveExperimentMenu.png)

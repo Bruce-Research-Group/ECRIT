@@ -109,6 +109,22 @@ class SessionTest(unittest.TestCase):
         self.assertEqual(s.undo_point(), (0.0, 0.0))
         self.assertIsNone(s.undo_point())
 
+    def test_remove_and_reorder_points(self):
+        s = make_session()
+        s.points[:] = [(1.0, 0.0), (2.0, 0.0), (3.0, 0.0), (4.0, 0.0)]
+        s.move_point(3, 0)
+        self.assertEqual(s.points, [(4.0, 0.0), (1.0, 0.0), (2.0, 0.0), (3.0, 0.0)])
+        s.move_point(1, 2)
+        self.assertEqual(s.points, [(4.0, 0.0), (2.0, 0.0), (1.0, 0.0), (3.0, 0.0)])
+        self.assertEqual(s.remove_point(1), (2.0, 0.0))
+        self.assertEqual(s.points, [(4.0, 0.0), (1.0, 0.0), (3.0, 0.0)])
+        for bad in (-1, 3):
+            with self.assertRaises(IndexError):
+                s.remove_point(bad)
+            with self.assertRaises(IndexError):
+                s.move_point(0, bad)
+        self.assertEqual(len(s.points), 3)
+
     def test_run_params_check(self):
         s = make_session()
         with self.assertRaisesRegex(ValueError, "geometric area"):
@@ -543,13 +559,23 @@ class CliTest(unittest.TestCase):
         self.assertIn("baseline Z 30", out)  # baseline here, at Z 30
         self.assertIn("baseline Z 20", out)
         self.assertIn("a point is already set at (5, 0)", out)
-        self.assertIn("1: (10, 0)", out)
+        self.assertIn("2: (10, 0)", out)  # numbered from 1, as in the GUI
         self.assertIn("use start -y in scripts", out)
         self.assertIn("completed. 2/2 point(s)", out)
         self.assertIn("unknown command 'bogus'", out)
         self.assertIn("stopping", out)
         self.assertEqual(code, 1)  # the bogus command
         self.assertEqual(len(list(Path(out_dir).glob("log_*.csv"))), 1)
+
+    def test_shell_delete_and_reorder(self):
+        script = "\n".join(["step 10", "point", "jog x +", "point", "jog x +", "point",
+                             "reorder 3 1", "delete 2", "points", "delete 5"])
+        code, out = self.cli(["--sim", "--sim-speed", "5000", "shell"], script)
+        self.assertIn("1: (20, 0)\n2: (0, 0)\n3: (10, 0)", out)  # after reorder
+        self.assertIn("removed (0, 0), 2 point(s) left", out)
+        self.assertIn("1: (20, 0)\n2: (10, 0)", out)
+        self.assertIn("error: there is no point 5 (2 set)", out)
+        self.assertEqual(code, 1)
 
     def test_piped_shell_stops_at_first_error(self):
         code, out = self.cli(["--sim", "--sim-speed", "5000", "shell"], "move z=999\nmove z=10\npos\n")
