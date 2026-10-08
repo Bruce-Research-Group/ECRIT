@@ -454,6 +454,39 @@ What works:
   visible through the current noise. It led the current overshoot at every gain
   tested: 5.9 % of the step at kp = 0.004 against 13.3 % at kp = 0.006.
 
+## Telemetry — `t`
+
+While the output is on, the board prints one row per 50 ms control step. `t`
+picks the format; it lives in RAM, starts at 0, and `r` does not change it.
+
+| `t` | Row | Used by |
+|---|---|---|
+| 0 | `current_mA,target_V,anode_V` | host UI, two-electrode runs; the old UI |
+| 1 | format 0, then `cell_V,ce_V,re_V,charge_C,rail_V,CV\|CC` | bench work |
+| 2 | Teleplot `>current:...,voltage:...` | Teleplot |
+| 3 | format 0, then `cell_V` | host UI with the reference electrode |
+
+`anode_V` is CN1 as the INA228 measures it (VBUS), read every step, so CN1 must
+be wired to the anode. It used to be the supply's `VOUT1?` readback.
+
+`cell_V` is RE − WE in volts, the `cell` channel, and is the fourth column in
+both 1 and 3. The host records it negated, as the working electrode's potential
+against the reference. With CN4 open, `cell_V` sits at the 2.048 V full scale
+(see section 4).
+
+Console writes block on the R4: `UART::write` waits for each byte to leave,
+about 1 ms a byte at 9600 baud. A format 0 row costs ~21 ms of every 50 ms
+step, a format 3 row ~29 ms, and a format 1 row (~60 bytes) more than the
+whole step, which is why the host uses 3. The ADS1115 scanner only advances in
+what is left, so it visits `cell` every other conversion; measured on the rig,
+`cell` was 150–400 ms old with a plain round robin. After `c` or `v` turns the
+output on, `cell_V` reads `nan` until a conversion that started after that has
+finished, rather than repeating the open-circuit value.
+
+The first three columns never move, and older hosts only read those, so any
+format is safe for them. The host selects its format at the start of each run
+and goes back to 0 at the end of a reference run.
+
 ## Checks that need no reference
 
 Worth running after any change, since none of them need a calibrated source:

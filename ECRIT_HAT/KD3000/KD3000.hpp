@@ -119,6 +119,25 @@ size_t query(const char *command, char *response, size_t responseSize);
 // the definition for why query() cannot be used.
 bool queryStatusByte(uint8_t &out);
 
+// Non-blocking query, for the readback in the control loop. beginQuery() sends
+// the command and returns; pollQuery() collects the reply over later calls,
+// until it says DONE (the reply is in `response`; for a raw query, the byte is
+// response[0]), TIMEOUT, or CANCELLED. Only one query is in flight at a time,
+// and any other command -- set(), query(), queryStatusByte(), or a new
+// beginQuery() -- cancels it, because each clears the input buffer the reply
+// would arrive in. That is deliberate: OUT0 must never wait for a readback.
+enum KD3000PollResult : uint8_t
+{
+	KD3000_POLL_PENDING = 0,
+	KD3000_POLL_DONE,
+	KD3000_POLL_TIMEOUT,
+	KD3000_POLL_CANCELLED,
+};
+void beginQuery(const char *command, bool rawByte);
+KD3000PollResult pollQuery(char *response, size_t responseSize);
+bool queryInFlight();
+void cancelQuery();
+
 void setCurrent(float current);
 float getCurrentSetting();
 void setVoltage(float voltage);

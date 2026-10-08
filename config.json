@@ -5,6 +5,7 @@
   "duration": 10,
   "diff_z": 1,
   "travel_z": 110.0,
+  "reference_electrode": false,
   "x_limit": 235,
   "y_limit": 235,
   "z_limit": 200,

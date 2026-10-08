@@ -39,6 +39,7 @@ class Session:
         self.target_voltage = config.target_voltage
         self.distance = config.diff_z
         self.duration = config.duration
+        self.reference = config.reference_electrode
 
     # ------------------------------------------------------------ motion
 
@@ -119,6 +120,7 @@ class Session:
             target_current=self.target_current,
             target_voltage=self.target_voltage,
             travel_z=self.config.travel_z,
+            reference=self.reference,
         )
         params.check(self.config)
         return params

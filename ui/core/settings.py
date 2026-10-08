@@ -35,6 +35,8 @@ class Config:
     diff_z: float = 1.0
     # height the head travels at between runs, mm
     travel_z: float = 110.0
+    # record the reference electrode (CN4) during runs; off for a two-electrode cell
+    reference_electrode: bool = False
 
     # machine limits, mm
     x_limit: float = 235.0

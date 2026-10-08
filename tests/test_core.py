@@ -14,9 +14,9 @@ from pathlib import Path
 
 from ui.core import devices
 from ui.core.devices import (DeviceError, Printer, check_ports, describe_hat, describe_printer,
-                             format_number, parse_telemetry)
+                             format_number, parse_cell_potential, parse_telemetry)
 from ui.core.link import Link
-from ui.core.plating import CSV_COLUMNS, PlatingRun
+from ui.core.plating import CSV_COLUMNS, REFERENCE_COLUMN, PlatingRun, describe_reference
 from ui.core.session import Session
 from ui.core.settings import Config, Options
 from ui.core.sim import sim_rig
@@ -50,6 +50,19 @@ class ParsingTest(unittest.TestCase):
         self.assertTrue(nan is not None and nan[0] != nan[0])
         for line in ("Reset", "Hold Current, target = 5 mA", "TRIP ocp at 9", ">current:1,voltage:2,x:3", "1,2"):
             self.assertIsNone(parse_telemetry(line), line)
+
+    def test_cell_potential(self):
+        self.assertEqual(parse_cell_potential("63.0012,3.712,3.700,0.91234"), 0.91234)
+        self.assertEqual(parse_cell_potential("1,2,3,0.5,1.2,0.6,0.0,2.3,CV"), 0.5)  # format 1
+        nan = parse_cell_potential("1,2,3,nan")
+        self.assertTrue(nan is not None and nan != nan)
+        for line in ("63.0012,3.712,3.700", "1,2,3,x", "Reset"):
+            self.assertIsNone(parse_cell_potential(line), line)
+
+    def test_describe_reference(self):
+        self.assertEqual(describe_reference(-0.91234), "-0.9123 V")
+        self.assertEqual(describe_reference(float("nan")), "no reading")
+        self.assertIn("is the RE connected", describe_reference(-2.048))
 
     def test_format_number(self):
         self.assertEqual(format_number(12.5), "12.5")
@@ -197,6 +210,59 @@ class RunTest(unittest.TestCase):
         self.assertEqual(len(samples), len(result.samples))
         self.assertEqual(points, [(10.0, 20.0), (30.0, 20.0)])
         self.assertEqual(duration, 0.3)
+
+    def test_reference_run(self):
+        from ui.core.plot import load_run, save_plot
+        s = ready_session()
+        s.reference = True
+        result, _ = self.run_it(s)
+        self.assertTrue(result.completed, result.summary())
+        sent = s.rig.hat.link.sent
+        self.assertEqual(sent[:3], ["r", "t 3", "c 63"])
+        self.assertEqual(sent[-1], "t 0")  # left on the plain format
+        self.assertEqual(s.rig.hat.link.telemetry_format, 0)
+
+        # RE - WE = 0.6 V + 63 mA * 5 ohm in the sim; the CSV has it negated.
+        for smp in result.samples:
+            self.assertAlmostEqual(smp.we_vs_re_V, -0.915, delta=0.01)
+        rows = result.csv_path.read_text().splitlines()
+        self.assertEqual(rows[0], ",".join(CSV_COLUMNS + (REFERENCE_COLUMN,)))
+        self.assertEqual(rows.count(",,,,,"), 2)
+        self.assertIn("reference_electrode True\n", result.log_path.read_text())
+
+        samples, _, _ = load_run(result.csv_path)
+        self.assertEqual([x.we_vs_re_V for x in samples], [x.we_vs_re_V for x in result.samples])
+        save_plot(self.dir / "plot.png", samples, result.params.points, result.params.duration)
+        self.assertTrue((self.dir / "plot.png").stat().st_size > 0)
+
+    def test_plain_run_has_no_reference(self):
+        from ui.core.plot import load_run
+        s = ready_session(points=((10.0, 10.0),))
+        result, _ = self.run_it(s)
+        self.assertTrue(all(smp.we_vs_re_V is None for smp in result.samples))
+        self.assertTrue(all(smp.we_vs_re_V is None for smp in load_run(result.csv_path)[0]))
+
+    def test_reference_on_firmware_without_format_3(self):
+        s = ready_session(points=((10.0, 10.0),), formats=(0, 1, 2))
+        s.reference = True
+        with self.assertLogs("ui.core.devices", "WARNING"):
+            result, _ = self.run_it(s)
+        self.assertTrue(result.completed, result.summary())
+        self.assertEqual(s.rig.hat.link.sent[:4], ["r", "t 3", "t 1", "c 63"])
+        self.assertAlmostEqual(result.samples[0].we_vs_re_V, -0.915, delta=0.01)
+
+    def test_reference_needs_ecrit_hat_firmware(self):
+        s = ready_session(points=((10.0, 10.0),), formats=())
+        s.reference = True
+        result, _ = self.run_it(s)
+        self.assertIn("Flash ECRIT_HAT", result.error or "")
+        self.assertFalse(any(line.startswith("c") for line in s.rig.hat.link.sent))
+
+    def test_open_reference_reads_full_scale(self):
+        s = ready_session(points=((10.0, 10.0),), reference_open=True)
+        s.reference = True
+        result, _ = self.run_it(s)
+        self.assertIn("is the RE connected", describe_reference(result.samples[0].we_vs_re_V))
 
 
 class ProbeTest(unittest.TestCase):
@@ -501,6 +567,23 @@ class CliTest(unittest.TestCase):
                               "--duration", "0.2", "--current", "5", "--out", out_dir, "-y"])
         self.assertEqual(code, 0, out)
         self.assertIn("5 mA constant current", out)
+        self.assertIn("reference electrode off", out)
+
+    def test_run_command_with_reference(self):
+        out_dir = tempfile.mkdtemp()
+        code, out = self.cli(["--sim", "--sim-speed", "5000", "run", "--point", "10,10", "--baseline", "40",
+                              "--duration", "1.2", "--current", "5", "--ref", "--out", out_dir, "-y"])
+        self.assertEqual(code, 0, out)
+        self.assertIn("reference electrode on", out)
+        self.assertIn("WE-RE=-0.6", out)
+        csv_path = next(Path(out_dir).glob("log_*.csv"))
+        self.assertTrue(csv_path.read_text().startswith(",".join(CSV_COLUMNS + (REFERENCE_COLUMN,))))
+
+    def test_shell_ref(self):
+        code, out = self.cli(["--sim", "shell"], "ref\nref on\nref off\nref maybe\n")
+        self.assertIn("reference electrode off", out)
+        self.assertIn("reference electrode on", out)
+        self.assertEqual(code, 1)  # ref maybe
 
     def test_run_refuses_bad_params(self):
         with self.assertRaises(SystemExit):

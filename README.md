@@ -109,6 +109,8 @@ WARNING: If the number you choose from the “Select Printer Step Size” is mor
 ![](Screenshots/ParameterMenu.png)
 
 7. The following experimental variables will be registered in the boxes (a) Input values for the distance between electrode and substrate (in millimeters). (b) The time the experiment should take at each point (in seconds). (c) Set either the current in milliAmperes or voltage in volts.
+
+   For a three-electrode cell, tick "Use Reference Electrode" and connect the reference electrode to CN4. The run window then also shows the working electrode's potential against the reference ("WE vs RE"), the CSV gets a sixth column, "Potential WE vs RE" (V), and the plot gets a panel for it underneath. It needs the ECRIT-HAT firmware. A reading stuck at about -2.048 V means the reference input is open. Leave the box unticked for a two-electrode cell; the CSV then has the usual five columns. `"reference_electrode": true` in `config.json` ticks it by default, and on the command line it is `run --ref` or `ref on` in the shell.
 8. Click "START ELECTROPLATING"
 9. Wait for the experiment to start and monitor the real-time results.
 

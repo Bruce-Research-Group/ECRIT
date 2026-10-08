@@ -14,6 +14,11 @@ Two files are written as the run goes, named after its start time:
   log_<stamp>.txt  settings, then every raw telemetry row with its time
   log_<stamp>.csv  Current, Target Voltage, Actual Voltage, Time Individual,
                    Time Accumulative; an empty row starts each point
+
+With the reference electrode on, the HAT also reports RE - WE, and the CSV
+gets a sixth column, Potential WE vs RE: the working electrode's potential
+against the reference (V), the usual electrochemical sign, so RE - WE negated.
+Without it the CSV is exactly the five columns above.
 """
 
 from __future__ import annotations
@@ -29,12 +34,28 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, List, Optional, Tuple
 
-from .devices import DeviceError, Rig, parse_telemetry
+from .devices import CELL_FULL_SCALE_V, DeviceError, Rig, parse_cell_potential, parse_telemetry
 from .settings import Config
 
 log = logging.getLogger(__name__)
 
 CSV_COLUMNS = ("Current", "Target Voltage", "Actual Voltage", "Time Individual", "Time Accumulative")
+REFERENCE_COLUMN = "Potential WE vs RE"
+
+
+def csv_columns(reference: bool) -> Tuple[str, ...]:
+    return CSV_COLUMNS + (REFERENCE_COLUMN,) if reference else CSV_COLUMNS
+
+
+def describe_reference(we_vs_re: Optional[float]) -> str:
+    """Live readout of WE vs RE, e.g. "-0.8123 V". A reading at full scale
+    is what an open reference input gives, so say so."""
+    if we_vs_re is None or math.isnan(we_vs_re):
+        return "no reading"
+    text = f"{we_vs_re:.4f} V"
+    if abs(we_vs_re) >= CELL_FULL_SCALE_V - 0.005:
+        text += " (full scale: is the RE connected?)"
+    return text
 
 
 @dataclass
@@ -48,6 +69,7 @@ class RunParams:
     target_voltage: float  # V
     travel_z: float        # mm
     lift: float = 2.0      # mm above plating height between points
+    reference: bool = False  # record the reference electrode (3-electrode cell)
 
     @property
     def plate_z(self) -> float:
@@ -63,7 +85,8 @@ class RunParams:
         return (f"{len(self.points)} point(s): {points}\n"
                 f"{self.target:g} {unit} for {self.duration:g} s at each\n"
                 f"plating Z {self.plate_z:g} (baseline {self.baseline_z:g} + {self.distance:g}), "
-                f"travel Z {self.travel_z:g}")
+                f"travel Z {self.travel_z:g}\n"
+                f"reference electrode {'on' if self.reference else 'off'}")
 
     def check(self, config: Config) -> None:
         problems = []
@@ -90,9 +113,12 @@ class Sample:
     point: int          # index into RunParams.points
     current_mA: float
     target_V: float     # the PSU setpoint
-    voltage_V: float    # the PSU readback
+    voltage_V: float    # measured at the anode (CN1); PSU readback on older firmware
     t_point: float      # seconds since this point's output went on
     t_total: float      # t_point + point * duration
+    # Working electrode vs reference (V), only with the reference electrode on.
+    # NaN when the HAT had no reading.
+    we_vs_re_V: Optional[float] = None
 
 
 @dataclass
@@ -179,10 +205,11 @@ class PlatingRun:
 
         with open(result.log_path, "w") as log_file, open(result.csv_path, "w", newline="") as csv_file:
             writer = csv.writer(csv_file)
-            writer.writerow(CSV_COLUMNS)
+            columns = csv_columns(self.params.reference)
+            writer.writerow(columns)
             self._write_header(log_file)
             try:
-                self._sequence(result, log_file, writer, csv_file)
+                self._sequence(result, log_file, writer, csv_file, len(columns))
             except _Stop as e:
                 result.stopped = str(e)
             except DeviceError as e:
@@ -209,14 +236,18 @@ class PlatingRun:
         f.write(f"duration {p.duration}s\n")
         f.write(f"diff_z {p.distance}mm\n")
         f.write(f"points {len(p.points)}\n")
+        f.write(f"reference_electrode {p.reference}\n")
         f.write("====================================\n")
 
-    def _sequence(self, result: RunResult, log_file, writer, csv_file) -> None:
+    def _sequence(self, result: RunResult, log_file, writer, csv_file, width: int) -> None:
         p = self.params
         hat, printer = self.rig.hat, self.rig.printer
 
         hat.reset()
-        hat.use_host_telemetry()
+        if p.reference:
+            hat.use_reference_telemetry()
+        else:
+            hat.use_host_telemetry()
         printer.absolute_mode()
 
         self._state("To travel height")
@@ -226,7 +257,7 @@ class PlatingRun:
 
         for i, (x, y) in enumerate(p.points):
             self._check_stop()
-            writer.writerow([""] * len(CSV_COLUMNS))
+            writer.writerow([""] * width)
             label = f"x: {x:.3f}, y: {y:.3f}"
             log_file.write("\n" + label + "\n")
             self._state(label)
@@ -280,7 +311,12 @@ class PlatingRun:
             t = time.monotonic() - start
             log_file.write(f"{line},{t}\n")
             sample = Sample(index, values[0], values[1], values[2], t, t + index * duration)
-            writer.writerow([sample.current_mA, sample.target_V, sample.voltage_V, sample.t_point, sample.t_total])
+            row = [sample.current_mA, sample.target_V, sample.voltage_V, sample.t_point, sample.t_total]
+            if self.params.reference:
+                cell = parse_cell_potential(line)
+                sample.we_vs_re_V = math.nan if cell is None else -cell
+                row.append(sample.we_vs_re_V)
+            writer.writerow(row)
             result.samples.append(sample)
             self._emit("sample", sample)
 
@@ -303,6 +339,12 @@ class PlatingRun:
             self.rig.hat.send_off()
         except Exception as e:
             log.warning("Could not send f to the HAT: %s", e)
+        if self.params.reference:
+            # Leave the HAT on the plain format, as a board fresh from reset is.
+            try:
+                self.rig.hat.use_host_telemetry()
+            except Exception as e:
+                log.warning("Could not reset the HAT's telemetry format: %s", e)
         try:
             self.rig.printer.message("Done")
         except Exception as e:

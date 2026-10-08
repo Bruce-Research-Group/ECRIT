@@ -34,6 +34,17 @@ enum AdsSlot : uint8_t
 	SLOT_COUNT
 };
 
+// The order the scanner visits the slots in. RE - WE gets every other
+// conversion: it is the one the host records during a run and the one the
+// cell-window interlock reads, and while the output is on the loop only gets
+// one or two conversions done per 50 ms step -- console writes block on the R4
+// (about 1 ms a byte at 9600 baud), and so does each PSU set and query. With a
+// plain round robin a reading could be 400 ms old.
+static constexpr uint8_t ADS_SCAN_ORDER[] = {
+	SLOT_CE, SLOT_CELL, SLOT_RAIL, SLOT_CELL, SLOT_RE, SLOT_CELL, SLOT_WE, SLOT_CELL,
+};
+static constexpr uint8_t ADS_SCAN_LENGTH = sizeof(ADS_SCAN_ORDER) / sizeof(ADS_SCAN_ORDER[0]);
+
 struct SensorState
 {
 	bool adsOk = false;
@@ -50,6 +61,9 @@ struct SensorState
 	float we_A = NAN;   // coarse current from the shunt tap
 	float rail_V = NAN;
 	unsigned long adsUpdatedMs[SLOT_COUNT] = {0};
+	// When the conversion behind each value was started. A conversion that
+	// finishes after the output comes on can still have sampled before it.
+	unsigned long adsStartedMs[SLOT_COUNT] = {0};
 
 	// INA228, calibration applied where a calibration exists.
 	float current_mA = NAN;
@@ -132,17 +146,17 @@ inline void storeAdsSlot(SensorState &state, uint8_t slot, float value)
 	state.adsUpdatedMs[slot] = millis();
 }
 
-// Non-blocking round robin over the five ADS slots.
+// Non-blocking scan over the ADS slots, in ADS_SCAN_ORDER.
 class AdsScanner
 {
 public:
 	void reset()
 	{
 		inFlight_ = false;
-		slot_ = 0;
+		index_ = 0;
 	}
 
-	uint8_t slot() const { return slot_; }
+	uint8_t slot() const { return ADS_SCAN_ORDER[index_]; }
 
 	void service(SensorState &state, const BoardCal &cal)
 	{
@@ -151,7 +165,8 @@ public:
 			return;
 		}
 
-		const AdsSlotSpec spec = adsSlotSpec(slot_);
+		const uint8_t slot = this->slot();
+		const AdsSlotSpec spec = adsSlotSpec(slot);
 
 		if (!inFlight_)
 		{
@@ -173,13 +188,14 @@ public:
 			// computeVolts() uses the gain currently held by the driver, so it
 			// has to run before the next slot changes it.
 			const float volts = ads.computeVolts(ads.getLastConversionResults());
-			const uint8_t channel = adsSlotToCalChannel(slot_);
+			const uint8_t channel = adsSlotToCalChannel(slot);
 			float value = applyCal(cal.ch[channel], volts * spec.scale);
-			if (slot_ == SLOT_WE)
+			if (slot == SLOT_WE)
 			{
 				value -= state.zeroWe_A;
 			}
-			storeAdsSlot(state, slot_, value);
+			storeAdsSlot(state, slot, value);
+			state.adsStartedMs[slot] = startedMs_;
 			advance();
 		}
 		else if (elapsed > EcritHatConfig::ADS_TIMEOUT_MS)
@@ -194,10 +210,10 @@ private:
 	void advance()
 	{
 		inFlight_ = false;
-		slot_ = (uint8_t)((slot_ + 1) % SLOT_COUNT);
+		index_ = (uint8_t)((index_ + 1) % ADS_SCAN_LENGTH);
 	}
 
-	uint8_t slot_ = 0;
+	uint8_t index_ = 0;
 	bool inFlight_ = false;
 	unsigned long startedMs_ = 0;
 };
@@ -339,6 +355,7 @@ inline void readInaFast(SensorState &state, const BoardCal &cal)
 		// probe costs nothing, while believing a bad reading for even one step
 		// walks the setpoint by kp * target volts.
 		state.current_mA = NAN;
+		state.bus_V = NAN;
 		// Deliberately leave inaFastUpdatedMs alone so the reading also ages
 		// out, rather than looking permanently fresh.
 		if (state.inaFailStreak < 255) state.inaFailStreak++;
@@ -352,6 +369,8 @@ inline void readInaFast(SensorState &state, const BoardCal &cal)
 	state.inaFailStreak = 0;
 
 	state.current_mA = applyCal(cal.ch[CAL_INA_I], ina.readCurrent()) - state.zeroCurrent_mA;
+	// VBUS is CE (CN1), the anode. Read every step for telemetry column 3.
+	state.bus_V = applyCal(cal.ch[CAL_INA_V], ina.readBusVoltage());
 	state.inaFastUpdatedMs = millis();
 }
 
@@ -381,7 +400,6 @@ inline void clearZero(SensorState &state)
 inline void readInaSlow(SensorState &state, const BoardCal &cal)
 {
 	if (!state.inaOk) return;
-	state.bus_V = applyCal(cal.ch[CAL_INA_V], ina.readBusVoltage());
 	state.shunt_mV = ina.readShuntVoltage();
 	state.power_mW = ina.readPower();
 	state.charge_C = ina.readCharge();

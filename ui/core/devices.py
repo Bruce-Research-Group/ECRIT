@@ -5,8 +5,11 @@ Hat speaks the firmware's console protocol (ECRIT_HAT/ECRIT_HAT.ino):
   c <mA> -> "Hold Current target = ..." or a one-line refusal
   v <V>  -> "Hold Voltage target = ..." or a one-line refusal
   f      -> "Turn off"      (also printed after an interlock trip)
-and, while the output is on, telemetry rows "current_mA,target_V,readback_V".
-The older sketches answer the same commands.
+and, while the output is on, telemetry rows "current_mA,target_V,anode_V"
+(anode_V is CN1 as the HAT measures it; older firmware sends the PSU readback).
+With the reference electrode in use the HAT is switched to format 3 (t 3),
+which adds RE - WE in volts as a fourth column. The older sketches answer the
+same commands but have no `t`.
 
 Printer is plain Marlin ping-pong: every command is answered by a line
 starting with "ok", and long commands send "echo:busy" keepalives first.
@@ -38,7 +41,7 @@ class DeviceError(RuntimeError):
 
 
 def parse_telemetry(line: str) -> Optional[Tuple[float, float, float]]:
-    """(current_mA, target_V, readback_V) from a telemetry row, else None.
+    """(current_mA, target_V, anode_V) from a telemetry row, else None.
 
     The firmware keeps informational lines free of commas, so anything that
     splits into three numbers is telemetry. Extra columns (format 1) are
@@ -51,6 +54,23 @@ def parse_telemetry(line: str) -> Optional[Tuple[float, float, float]]:
         return float(parts[0]), float(parts[1]), float(parts[2])
     except ValueError:
         return None
+
+
+def parse_cell_potential(line: str) -> Optional[float]:
+    """RE - WE (V) from the fourth column of a format 1 or 3 row, else None.
+    The firmware prints "nan" when it has no reading, which comes back as NaN."""
+    parts = line.split(",")
+    if len(parts) < 4:
+        return None
+    try:
+        return float(parts[3])
+    except ValueError:
+        return None
+
+
+# RE - WE is the ADS1115's AIN2 - AIN3 pair at +-2.048 V full scale. An open
+# reference input floats to about half the analog rail and pins it there.
+CELL_FULL_SCALE_V = 2.048
 
 
 @dataclass
@@ -143,6 +163,25 @@ class Hat:
         """Select the 3-column telemetry the run parses (t 0). Best effort:
         the older sketches ignore it."""
         self.console("t 0", quiet=0.2, timeout=0.5)
+
+    def use_reference_telemetry(self) -> int:
+        """Select telemetry with RE - WE in the fourth column and return the
+        format the HAT took: 3, or 1 from ECRIT_HAT firmware that predates 3
+        (it answers "Telemetry format 0" to t 3). Raises DeviceError if the
+        board has neither."""
+        for wanted in (3, 1):
+            try:
+                line = self._expect(f"t {wanted}", lambda l: l.startswith("Telemetry format")
+                                    or l.startswith("Unknown"), timeout=1.0)
+            except DeviceError:
+                break
+            if line == f"Telemetry format {wanted}":
+                if wanted != 3:
+                    log.warning("HAT firmware has no telemetry format 3; using the extended format 1")
+                return wanted
+            if not line.startswith("Telemetry format"):
+                break
+        raise DeviceError("This HAT firmware cannot report the reference electrode. Flash ECRIT_HAT.")
 
     def start_output(self, current_mode: bool, target: float, timeout: float = 2.0) -> str:
         """Start constant current (mA) or constant voltage (V) and return the

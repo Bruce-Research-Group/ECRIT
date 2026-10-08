@@ -1,5 +1,8 @@
 """The voltage and current vs. time plot shown after a run.
 
+Runs with the reference electrode get a second panel underneath, on the same
+time axis: the working electrode's potential against the reference.
+
 Builds a bare matplotlib Figure (no pyplot), so it works from any thread and
 without a display. The GUI embeds it; the CLI saves it to a file.
 """
@@ -7,14 +10,16 @@ without a display. The GUI embeds it; the CLI saves it to a file.
 from __future__ import annotations
 
 import csv
+import math
 import re
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from .plating import Sample
+from .plating import REFERENCE_COLUMN, Sample
 
 VOLTAGE_COLOR = "red"
 CURRENT_COLOR = "blue"
+REFERENCE_COLOR = "green"
 SPAN_COLOR = "#7dea827c"
 LABEL_COLOR = "#5590b0cd"
 
@@ -23,10 +28,19 @@ def make_figure(samples: List[Sample], points: List[Tuple[float, float]], durati
     from matplotlib.figure import Figure
     from matplotlib.ticker import FormatStrFormatter, MaxNLocator
 
-    fig = Figure(figsize=(8, 5))
-    fig.suptitle("Plot of Voltage (V) and Current (mA) vs. Time (s)")
-    ax = fig.add_subplot()
-    ax.set_xlabel("Time (Seconds)")
+    reference = any(s.we_vs_re_V is not None for s in samples)
+    if reference:
+        fig = Figure(figsize=(8, 7.5))
+        fig.suptitle("Plot of Voltage (V), Current (mA) and WE vs RE (V) vs. Time (s)")
+        ax, axr = fig.subplots(2, 1, sharex=True, gridspec_kw={"height_ratios": (3, 2)})
+        axes = (ax, axr)
+        axr.set_xlabel("Time (Seconds)")
+    else:
+        fig = Figure(figsize=(8, 5))
+        fig.suptitle("Plot of Voltage (V) and Current (mA) vs. Time (s)")
+        ax = fig.add_subplot()
+        axes = (ax,)
+        ax.set_xlabel("Time (Seconds)")
 
     t = [s.t_total for s in samples]
     ax.plot(t, [s.voltage_V for s in samples], "-o", color=VOLTAGE_COLOR, label="Voltage (V)")
@@ -38,9 +52,22 @@ def make_figure(samples: List[Sample], points: List[Tuple[float, float]], durati
     axc.set_ylabel("Current (mA)", color=CURRENT_COLOR, labelpad=20)
     axc.tick_params(axis="y", colors=CURRENT_COLOR)
 
+    if reference:
+        # NaN (no reading) leaves a gap in the line.
+        axr.plot(t, [math.nan if s.we_vs_re_V is None else s.we_vs_re_V for s in samples], "-o",
+                 color=REFERENCE_COLOR, label="WE vs RE (V)")
+        axr.set_ylabel("WE vs RE (V)", color=REFERENCE_COLOR, labelpad=20)
+        axr.tick_params(axis="y", colors=REFERENCE_COLOR)
+        axr.yaxis.set_major_locator(MaxNLocator(nbins=5))
+
     for axis in (ax.xaxis, ax.yaxis, axc.yaxis):
         axis.set_major_locator(MaxNLocator(nbins=6))
-    ax.xaxis.set_major_formatter(FormatStrFormatter("%.2f"))
+    axes[-1].xaxis.set_major_formatter(FormatStrFormatter("%.2f"))
+    # A steady trace (WE vs RE, or the voltage in voltage mode) spans far less
+    # than its value, and matplotlib would then label the ticks relative to an
+    # offset printed above the axis (-1.034 and -0.00026...). Label them in full.
+    for a in (*axes, axc):
+        a.ticklabel_format(axis="y", useOffset=False)
 
     # Each point owns [i * duration, (i + 1) * duration) of the accumulated
     # time axis. Shade every other one and label each with its position.
@@ -48,12 +75,18 @@ def make_figure(samples: List[Sample], points: List[Tuple[float, float]], durati
     for i, (x, y) in enumerate(points):
         start, end = i * duration, (i + 1) * duration
         if len(points) > 1 and i % 2 == 0:
-            ax.axvspan(start, end, color=SPAN_COLOR)
+            for a in axes:
+                a.axvspan(start, end, color=SPAN_COLOR)
         ax.text((start + end) / 2, 0.97, f"X: {x:g}\nY: {y:g}", transform=ax.get_xaxis_transform(),
                 ha="center", va="top", size=font_size, color=LABEL_COLOR)
 
-    fig.legend()
-    fig.tight_layout(rect=(0, 0, 1, 0.9))
+    if reference:
+        # Three entries stacked in the corner would run into the title.
+        fig.legend(loc="upper center", bbox_to_anchor=(0.5, 0.955), ncol=3)
+        fig.tight_layout(rect=(0, 0, 1, 0.91))
+    else:
+        fig.legend()
+        fig.tight_layout(rect=(0, 0, 1, 0.9))
     return fig
 
 
@@ -73,13 +106,17 @@ def load_run(csv_path: Path) -> Tuple[List[Sample], List[Tuple[float, float]], O
     point = -1
     with open(csv_path, newline="") as f:
         reader = csv.reader(f)
-        next(reader, None)
+        header = next(reader, [])
+        reference = len(header) > 5 and header[5] == REFERENCE_COLUMN
         for row in reader:
             if not any(row):
                 point += 1
                 continue
             cur, tar, vol, t_point, t_total = (float(v) for v in row[:5])
-            samples.append(Sample(max(point, 0), cur, tar, vol, t_point, t_total))
+            sample = Sample(max(point, 0), cur, tar, vol, t_point, t_total)
+            if reference:
+                sample.we_vs_re_V = float(row[5]) if len(row) > 5 and row[5] else math.nan
+            samples.append(sample)
 
     points: List[Tuple[float, float]] = []
     duration = None

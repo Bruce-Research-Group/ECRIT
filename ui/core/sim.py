@@ -2,7 +2,9 @@
 
 SimHatLink answers the console commands a run uses and streams telemetry at
 20 Hz while the output is on, from a crude cell model (a fixed overpotential
-plus a series resistance). SimPrinterLink acts like Marlin: "ok" for each
+plus a series resistance). RE - WE is that overpotential plus the part of the
+resistance between the reference and the working electrode, or full scale
+with the reference left open. SimPrinterLink acts like Marlin: "ok" for each
 command, moves that take time, M400 that waits for them, M114 and M115.
 """
 
@@ -89,11 +91,20 @@ class SimHatLink(_TimedLink):
     OVERPOTENTIAL_V = 1.2
     RESISTANCE_OHM = 40.0
     MAX_V = 30.0
+    # RE - WE: the cathodic overpotential plus the uncompensated resistance.
+    RE_OVERPOTENTIAL_V = 0.6
+    RE_RESISTANCE_OHM = 5.0
+    CELL_FULL_SCALE_V = 2.048
 
-    def __init__(self, psu: bool = True, trip_after: Optional[float] = None):
+    def __init__(self, psu: bool = True, trip_after: Optional[float] = None,
+                 formats: Tuple[int, ...] = (0, 1, 2, 3), reference_open: bool = False):
         super().__init__("sim:hat")
         self.psu = psu
         self.trip_after = trip_after
+        # Telemetry formats the firmware knows; (0, 1, 2) is ECRIT_HAT before
+        # format 3, () a sketch with no `t` at all.
+        self.formats = formats
+        self.reference_open = reference_open
         # Contact probe. `touching` says whether anode and cathode touch;
         # sim_rig wires it to the simulated printer's Z.
         self.touching: Callable[[], bool] = lambda: False
@@ -147,10 +158,12 @@ class SimHatLink(_TimedLink):
             self._push("Zero calibrated")
         elif word == "probe":
             self._handle_probe(parts[1].lower() if len(parts) > 1 else "")
-        elif word == "t":
+        elif word == "t" and self.formats:
             if arg is not None:
-                self.telemetry_format = int(arg) if 0 <= arg <= 2 else 0
+                self.telemetry_format = int(arg) if int(arg) in self.formats else 0
             self._push(f"Telemetry format {self.telemetry_format}")
+        elif word == "t":
+            pass  # the older sketches ignore unknown commands
         elif word == "s":
             for line in ("--- status ---", "sim: simulated ECRIT-HAT",
                          "psu: " + ("connected" if self.psu else "PSU not Connected"),
@@ -230,7 +243,17 @@ class SimHatLink(_TimedLink):
             return "TRIP ocp at 99.000"
         current, volts = self._cell()
         readback = volts + random.uniform(-0.005, 0.005)
-        return f"{current:.4f},{volts:.3f},{readback:.3f}"
+        row = f"{current:.4f},{volts:.3f},{readback:.3f}"
+        if self.telemetry_format in (1, 3):
+            if self.reference_open:
+                cell = self.CELL_FULL_SCALE_V
+            else:
+                cell = self.RE_OVERPOTENTIAL_V + current / 1000 * self.RE_RESISTANCE_OHM
+                cell = min(self.CELL_FULL_SCALE_V, cell + random.uniform(-0.0005, 0.0005))
+            row += f",{cell:.5f}"
+            if self.telemetry_format == 1:
+                row += f",{volts / 7.667:.4f},{cell + current / 1000 * 0.008:.4f},0.0000,2.3000,CV"
+        return row
 
     def _next_generated_at(self, now: float) -> Optional[float]:
         if self.probe_state == "armed":
@@ -343,10 +366,11 @@ def _is_number(text: str) -> bool:
 
 def sim_rig(speed_mm_s: float = 50.0, home_s: float = 2.0, psu: bool = True,
             trip_after: Optional[float] = None, surface_z: Optional[float] = 45.0,
-            quickstop_ok_s: float = 2.0) -> Rig:
+            quickstop_ok_s: float = 2.0, formats: Tuple[int, ...] = (0, 1, 2, 3),
+            reference_open: bool = False) -> Rig:
     """Simulated boards. The anode touches the cathode at Z <= surface_z
     (never, if None)."""
-    hat = SimHatLink(psu=psu, trip_after=trip_after)
+    hat = SimHatLink(psu=psu, trip_after=trip_after, formats=formats, reference_open=reference_open)
     printer = SimPrinterLink(speed_mm_s=speed_mm_s, home_s=home_s, quickstop_ok_s=quickstop_ok_s)
     if surface_z is not None:
         hat.touching = lambda: printer.live()["Z"] <= surface_z + 1e-9

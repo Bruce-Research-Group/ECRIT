@@ -14,7 +14,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from typing import Optional
 
-from ..core.plating import PlatingRun, RunResult, Sample
+from ..core.plating import PlatingRun, RunResult, Sample, describe_reference
 from ..core.probe import BaselineProbe, ProbeError, ProbeSettings
 from ..core.session import Session
 from ..core.settings import Options
@@ -206,6 +206,14 @@ class ControllerWindow:
             self.inputs[key] = entry
             self.input_labels[key] = label
 
+        self.reference_var = tk.BooleanVar(frm, s.reference)
+        # A classic Checkbutton: the ttk one barely changes when ticked on this background.
+        tk.Checkbutton(frm, text="Use Reference Electrode (3-electrode cell)", variable=self.reference_var,
+                       command=self._set_reference, font=theme.FONT, bg=theme.BG, fg="white",
+                       selectcolor=theme.BG, activebackground=theme.BG, activeforeground="white",
+                       highlightthickness=0).grid(row=len(rows), column=0, columnspan=2,
+                                                  sticky="w", padx=5, pady=5)
+
         ttk.Label(frm, text="Set Mode:").grid(row=0, columnspan=2, column=8, padx=40, pady=5)
         self.voltage_btn = tk.Button(frm, text="Voltage Mode", width=10, command=lambda: self._set_mode(False))
         self.voltage_btn.grid(row=1, column=8, padx=(15, 5), pady=5, ipadx=2)
@@ -218,6 +226,9 @@ class ControllerWindow:
         self.back_btn = tk.Button(frm, text="Go\nBack", width=10, command=self._back, bg=theme.BACK, fg="white")
         self.back_btn.grid(column=0, row=11, pady=(15, 10), sticky="w", padx=(10, 0))
         self._apply_mode()
+
+    def _set_reference(self) -> None:
+        self.session.reference = self.reference_var.get()
 
     def _set_mode(self, current_mode: bool) -> None:
         self.session.current_mode = current_mode
@@ -266,14 +277,14 @@ class ControllerWindow:
 
         self.start_btn.config(state="disabled")
         self.back_btn.config(state="disabled")
-        self._open_run_window(len(params.points), params.duration)
+        self._open_run_window(len(params.points), params.duration, params.reference)
         self.run = PlatingRun(self.session.rig, params,
                               on_event=lambda kind, payload: self.tasks.post(lambda: self._on_run_event(kind, payload)))
         self.tasks.submit(self.run.run, self._run_finished, self._run_crashed)
 
     # ------------------------------------------------------------ the run
 
-    def _open_run_window(self, points: int, duration: float) -> None:
+    def _open_run_window(self, points: int, duration: float, reference: bool) -> None:
         top = tk.Toplevel(self.root)
         top.title("Electroplating")
         top.protocol("WM_DELETE_WINDOW", self._cancel)
@@ -284,8 +295,10 @@ class ControllerWindow:
         self.run_duration = duration
         self.run_labels = {}
         rows = (("state", "Starting..."), ("current", "Current: no reading yet"),
-                ("voltage", "Output Voltage: no reading yet"), ("target", "Target Voltage: no reading yet"),
-                ("time", "Time left: no reading yet"))
+                ("voltage", "Output Voltage: no reading yet"), ("target", "Target Voltage: no reading yet"))
+        if reference:
+            rows += (("reference", "WE vs RE: no reading yet"),)
+        rows += (("time", "Time left: no reading yet"),)
         for row, (key, text) in enumerate(rows):
             label = tk.Label(frm, text=text)
             label.grid(row=row, column=0, sticky="w", padx=5, pady=5)
@@ -314,6 +327,8 @@ class ControllerWindow:
             labels["current"].config(text=f"current: {s.current_mA:g}")
             labels["voltage"].config(text=f"voltage: {s.voltage_V:g}")
             labels["target"].config(text=f"target voltage: {s.target_V:g}")
+            if "reference" in labels:
+                labels["reference"].config(text=f"WE vs RE: {describe_reference(s.we_vs_re_V)}")
             labels["time"].config(text=f"time left: {max(0, int(self.run_duration - s.t_point))}")
 
     def _close_run_window(self) -> None:

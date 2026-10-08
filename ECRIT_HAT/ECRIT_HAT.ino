@@ -61,6 +61,11 @@ static bool active = false;
 // the mode of the system
 static bool currentMode = false;
 
+// When `c` or `v` last switched the output on from off. A `c` or `v` that
+// only retargets a running output leaves it alone. See freshCellPotential().
+static unsigned long outputOnMs = 0;
+static bool outputOnStamped = false;
+
 // Manual supply control, driven from the console by `psu`.
 //
 // `active` stays false throughout, and that is the entire point: the
@@ -90,7 +95,8 @@ static bool dryRun = false;
 // Latched trip. Cleared by `w`.
 static TripReason latchedTrip = TRIP_NONE;
 
-// 0 = host-compatible CSV, 1 = extended CSV, 2 = Teleplot
+// 0 = host-compatible CSV, 1 = extended CSV, 2 = Teleplot, 3 = host CSV plus
+// RE - WE. Not reset by `r`; the host selects one before each run.
 static uint8_t telemetryFormat = 0;
 
 // Yellow LED2 on D13: 0 = off, 1 = on, 2 = heartbeat. The heartbeat is the
@@ -162,9 +168,21 @@ static void updateLeds(unsigned long nowMs)
 	digitalWrite(PIN_LED_USER, user ? HIGH : LOW);
 }
 
+static void stampOutputOn()
+{
+	if (!outputOnStamped)
+	{
+		outputOnMs = millis();
+		outputOnStamped = true;
+	}
+}
+
 static void stopOutput()
 {
+	// OUT0 cancels a readback in flight anyway; this also resets its stage.
+	psuCancelReadback(psu);
 	active = false;
+	outputOnStamped = false;
 	manualOutput = false;
 	resetPID();
 	setOutput(false);
@@ -706,7 +724,7 @@ static void printHelp()
 	Serial_Pi.println("  m - One-shot measurement of every channel");
 	Serial_Pi.println("  a - Reset the INA228 charge and energy accumulators");
 	Serial_Pi.println("  k - Enter calibration mode");
-	Serial_Pi.println("  t [0|1|2] - Telemetry format: host CSV / extended / teleplot");
+	Serial_Pi.println("  t [0|1|2|3] - Telemetry format: host CSV / extended / teleplot / host + RE");
 	Serial_Pi.println("  n - Re-probe the PSU");
 	Serial_Pi.println("  w - Clear a latched trip");
 	Serial_Pi.println("  u [0|1|2] - Yellow user LED on D13: off / on / heartbeat");
@@ -792,7 +810,7 @@ static void printPsuManualState()
 
 	if (psuPresent && !dryRun)
 	{
-		updatePsuReadbackIfDue(psu, PSU_CFG, millis(), true);
+		readPsuNow(psu, PSU_CFG);
 		printLabelled("psu readback voltage", psu.voltageReadbackV, 3, "V");
 		printLabelled("psu readback current", psu.currentReadbackA, 4, "A");
 	}
@@ -975,11 +993,16 @@ static void handleCommand(const ParsedCommand &cmd)
 				targetCurrent = cmd.arg;
 			}
 			resetPID();
+			psuCancelReadback(psu);
 			invalidatePsuSetpointCache(psu);
 			updateCurrentLimitForTarget(psu, PSU_CFG, targetCurrent);
 			setPsuVoltageIfNeeded(psu, PSU_CFG, outputVoltage);
 			setOutput(true);
-			if (!dryRun) updatePsuReadbackIfDue(psu, PSU_CFG, millis(), true);
+			stampOutputOn();
+			// Blocking, once: the comms interlock judges the link by the last
+			// good reply, and the first control step must see a fresh one. A
+			// dead link then trips on that step, as it always has.
+			if (!dryRun) readPsuNow(psu, PSU_CFG);
 			Serial_Pi.print("Hold Current target = ");
 			Serial_Pi.print(targetCurrent);
 			Serial_Pi.println(" mA");
@@ -1013,11 +1036,16 @@ static void handleCommand(const ParsedCommand &cmd)
 			{
 				outputVoltage = cmd.arg;
 			}
+			psuCancelReadback(psu);
 			invalidatePsuSetpointCache(psu);
 			setPsuCurrentLimitIfNeeded(psu, PSU_CFG, MAX_CURRENT_A);
 			setPsuVoltageIfNeeded(psu, PSU_CFG, outputVoltage);
 			setOutput(true);
-			if (!dryRun) updatePsuReadbackIfDue(psu, PSU_CFG, millis(), true);
+			stampOutputOn();
+			// Blocking, once: the comms interlock judges the link by the last
+			// good reply, and the first control step must see a fresh one. A
+			// dead link then trips on that step, as it always has.
+			if (!dryRun) readPsuNow(psu, PSU_CFG);
 			Serial_Pi.print("Hold Voltage target = ");
 			Serial_Pi.print(outputVoltage);
 			Serial_Pi.println(" V");
@@ -1116,7 +1144,7 @@ static void handleCommand(const ParsedCommand &cmd)
 			if (cmd.hasArg)
 			{
 				const int format = (int)cmd.arg;
-				telemetryFormat = (uint8_t)((format < 0 || format > 2) ? 0 : format);
+				telemetryFormat = (uint8_t)((format < 0 || format > 3) ? 0 : format);
 			}
 			Serial_Pi.print("Telemetry format ");
 			Serial_Pi.println(telemetryFormat);
@@ -1210,11 +1238,26 @@ static bool serviceConsole()
 
 // ---------------------------------------------------------------- telemetry
 
+// RE - WE for the telemetry row, or NAN until a conversion that started after
+// the output came on has finished. Until then the scanner still holds the
+// open-circuit value, and the host would record it as the first readings of
+// the point.
+static float freshCellPotential()
+{
+	if ((long)(sensors.adsStartedMs[SLOT_CELL] - outputOnMs) < 0) return NAN;
+	return sensors.cell_V;
+}
+
 static void emitTelemetry()
 {
-	// readback_V falls back to the commanded value before the first successful
-	// readback, which is what the host expects in the third column.
-	const float readback = isnan(psu.voltageReadbackV) ? outputVoltage : psu.voltageReadbackV;
+	// Column 3 is the voltage actually on the anode: CN1, through the INA228's
+	// VBUS, read every step. It used to be the supply's VOUT? readback, which
+	// comes in 10 mV steps, is up to 500 ms old, and read 0.000 at the start of
+	// every point because c and v ask for it straight after OUT1. Without the
+	// INA228, fall back to the readback, then to the commanded value.
+	float anode = sensors.inaOk ? sensors.bus_V : NAN;
+	if (isnan(anode)) anode = isnan(psu.voltageReadbackV) ? outputVoltage : psu.voltageReadbackV;
+	const float cell = freshCellPotential();
 
 	if (telemetryFormat == 2)
 	{
@@ -1222,10 +1265,10 @@ static void emitTelemetry()
 		printFloatOrNan(sensors.current_mA, 4);
 		Serial_Pi.print(",voltage:");
 		Serial_Pi.print(outputVoltage, 3);
-		Serial_Pi.print(",readback_voltage:");
-		printFloatOrNan(readback, 3);
+		Serial_Pi.print(",anode_voltage:");
+		printFloatOrNan(anode, 3);
 		Serial_Pi.print(",cell:");
-		printFloatOrNan(sensors.cell_V, 5);
+		printFloatOrNan(cell, 5);
 		Serial_Pi.print(",ce:");
 		printFloatOrNan(sensors.ce_V, 4);
 		Serial_Pi.print(",charge:");
@@ -1239,12 +1282,22 @@ static void emitTelemetry()
 	Serial_Pi.print(",");
 	Serial_Pi.print(outputVoltage, 3);
 	Serial_Pi.print(",");
-	printFloatOrNan(readback, 3);
+	printFloatOrNan(anode, 3);
+
+	// Column 4 is RE - WE in both formats, so the host reads it the same way
+	// from either. Format 3 stops there: console writes block on the R4, about
+	// 1 ms a byte at 9600 baud, so a format 1 row (~60 bytes) takes longer than
+	// the 50 ms step it reports on.
+	if (telemetryFormat == 3)
+	{
+		Serial_Pi.print(",");
+		printFloatOrNan(cell, 5);
+	}
 
 	if (telemetryFormat == 1)
 	{
 		Serial_Pi.print(",");
-		printFloatOrNan(sensors.cell_V, 5);
+		printFloatOrNan(cell, 5);
 		Serial_Pi.print(",");
 		printFloatOrNan(sensors.ce_V, 4);
 		Serial_Pi.print(",");
@@ -1392,11 +1445,12 @@ void loop()
 		return;
 	}
 
-	// Periodic PSU readback for the CSV third field and for comms health.
+	// Periodic PSU readback, for comms health (the comms interlock), CV/CC
+	// and `s`. Non-blocking: it sends a query or picks up a reply and returns.
 	// Pointless in dry run: there is nothing on the far end to ask.
 	if (!dryRun)
 	{
-		updatePsuReadbackIfDue(psu, PSU_CFG, millis(), false);
+		servicePsuReadback(psu, PSU_CFG, millis(), false);
 	}
 
 	// Control loop timing
@@ -1424,6 +1478,16 @@ void loop()
 		{
 			// No usable measurement: hold the last setpoint rather than
 			// integrating a NaN into it.
+			emitTelemetry();
+			return;
+		}
+
+		// A readback query is waiting for its reply, and a setpoint write now
+		// would cancel it. Hold this step instead of stepping a setpoint that
+		// cannot be sent yet; the blocking readback used to skip these steps
+		// altogether.
+		if (psuReadbackBusy(psu))
+		{
 			emitTelemetry();
 			return;
 		}

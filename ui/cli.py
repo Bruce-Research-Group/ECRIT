@@ -22,7 +22,7 @@ from typing import List, Optional, Tuple
 
 from .core.devices import DeviceError, Rig, connect, detect
 from .core.link import list_ports
-from .core.plating import PlatingRun, RunParams, RunResult, Sample
+from .core.plating import PlatingRun, RunParams, RunResult, Sample, describe_reference
 from .core.probe import BaselineProbe, ProbeError, ProbeSettings
 from .core.session import AXES, Session
 from .core.settings import REPO_ROOT, Config, Options
@@ -92,8 +92,9 @@ class Progress:
             s: Sample = payload  # type: ignore[assignment]
             if s.t_point - self._last >= self.every:
                 self._last = s.t_point
+                ref = "" if s.we_vs_re_V is None else f"  WE-RE={describe_reference(s.we_vs_re_V)}"
                 print(f"   t={s.t_point:6.1f} s  I={s.current_mA:9.3f} mA  "
-                      f"set={s.target_V:7.3f} V  read={s.voltage_V:7.3f} V")
+                      f"set={s.target_V:7.3f} V  read={s.voltage_V:7.3f} V{ref}")
 
 
 class ProbeProgress:
@@ -309,6 +310,7 @@ def cmd_run(args, config, options) -> int:
         target_current=config.target_current if args.current is None else args.current,
         target_voltage=config.target_voltage if args.voltage is None else args.voltage,
         travel_z=config.travel_z if args.travel_z is None else args.travel_z,
+        reference=config.reference_electrode if args.ref is None else args.ref,
     )
     try:
         params.check(config)
@@ -555,6 +557,15 @@ class Shell(cmd.Cmd):
         """duration [s]: plating time at each point."""
         self._param(arg, "duration", "duration", "s")
 
+    def do_ref(self, arg):
+        """ref [on|off]: record the reference electrode (3-electrode cell)."""
+        if arg.strip():
+            word = arg.strip().lower()
+            if word not in ("on", "off"):
+                raise ValueError("usage: ref on|off")
+            self.session.reference = word == "on"
+        print("reference electrode", "on" if self.session.reference else "off")
+
     def do_params(self, arg):
         """params: check and show what start would run."""
         print(self.session.run_params().describe())
@@ -669,6 +680,10 @@ def build_parser() -> argparse.ArgumentParser:
     mode.add_argument("--current", type=float, metavar="MA", help="constant current, mA")
     mode.add_argument("--voltage", type=float, metavar="V", help="constant voltage, V")
     s.add_argument("--travel-z", type=float, metavar="Z")
+    ref = s.add_mutually_exclusive_group()
+    ref.add_argument("--ref", dest="ref", action="store_true", default=None,
+                     help="record the reference electrode (WE vs RE column and plot panel)")
+    ref.add_argument("--no-ref", dest="ref", action="store_false", help="two electrodes only")
     s.add_argument("--out", type=Path, default=DEFAULT_OUT, metavar="DIR", help="where the CSV and log go")
     s.add_argument("--plot", type=Path, metavar="FILE", help="also save the plot (PNG, PDF, SVG)")
     s.add_argument("-y", "--yes", action="store_true", help="do not ask before starting")

@@ -2,6 +2,7 @@
 #include <Arduino.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 static const unsigned long KD3000_BASE_RESPONSE_DELAY_MS = 50;
 static const unsigned long KD3000_QUERY_TIMEOUT_MS = 300;
@@ -14,6 +15,27 @@ static void clearInputBuffer()
 	{
 		INTERFACE.read();
 	}
+}
+
+// The one query beginQuery() may have in flight. See pollQuery().
+static struct
+{
+	bool active;
+	bool rawByte;
+	unsigned long sentMs;
+	unsigned long lastByteMs;
+	size_t index;
+	char buffer[KD3000_RESPONSE_BUFFER_SIZE];
+} pending = {};
+
+void cancelQuery()
+{
+	pending.active = false;
+}
+
+bool queryInFlight()
+{
+	return pending.active;
 }
 
 static float queryFloat(const char *command)
@@ -32,6 +54,8 @@ static long queryLong(const char *command)
 
 void set(const char *command)
 {
+	// Clearing the input would eat the reply to a query in flight anyway.
+	cancelQuery();
 	clearInputBuffer();
 	INTERFACE.write(command);
 	INTERFACE.write('\n');
@@ -47,6 +71,7 @@ size_t query(const char *command, char *response, size_t responseSize)
 	}
 
 	response[0] = '\0';
+	cancelQuery();
 	clearInputBuffer();
 	INTERFACE.write(command);
 	INTERFACE.write('\n');
@@ -114,6 +139,79 @@ size_t query(const char *command, char *response, size_t responseSize)
 
 	response[index] = '\0';
 	return index;
+}
+
+void beginQuery(const char *command, bool rawByte)
+{
+	cancelQuery();
+	clearInputBuffer();
+	INTERFACE.write(command);
+	INTERFACE.write('\n');
+	INTERFACE.flush();
+
+	pending.active = true;
+	pending.rawByte = rawByte;
+	pending.sentMs = millis();
+	pending.lastByteMs = 0;
+	pending.index = 0;
+}
+
+// The same end-of-reply rules as query(): a text reply ends at CR or LF, or
+// KD3000_INTER_CHAR_GRACE_MS after its last byte, since this supply sends no
+// terminator. A raw reply (STATUS?) is the first byte, whatever its value --
+// see queryStatusByte(). Either one gives up KD3000_BASE_RESPONSE_DELAY_MS +
+// KD3000_QUERY_TIMEOUT_MS after the command, which is what a blocking query()
+// that got no answer cost. There is no fixed settle delay: the bytes are
+// collected as they arrive.
+KD3000PollResult pollQuery(char *response, size_t responseSize)
+{
+	if (!pending.active)
+	{
+		return KD3000_POLL_CANCELLED;
+	}
+
+	const unsigned long now = millis();
+	bool terminated = false;
+	while (!terminated && INTERFACE.available() > 0)
+	{
+		const char ch = (char)INTERFACE.read();
+		if (pending.rawByte)
+		{
+			if (responseSize > 0) response[0] = ch;
+			pending.active = false;
+			return KD3000_POLL_DONE;
+		}
+		if (ch == '\r' || ch == '\n')
+		{
+			terminated = pending.index > 0;
+			continue;
+		}
+		if ((pending.index + 1) < sizeof(pending.buffer))
+		{
+			pending.buffer[pending.index++] = ch;
+		}
+		pending.lastByteMs = now;
+	}
+
+	if (pending.index > 0 &&
+	    (terminated || (long)(now - pending.lastByteMs) >= (long)KD3000_INTER_CHAR_GRACE_MS))
+	{
+		if (responseSize > 0)
+		{
+			const size_t n = (pending.index < responseSize - 1) ? pending.index : responseSize - 1;
+			memcpy(response, pending.buffer, n);
+			response[n] = '\0';
+		}
+		pending.active = false;
+		return KD3000_POLL_DONE;
+	}
+
+	if ((long)(now - pending.sentMs) >= (long)(KD3000_BASE_RESPONSE_DELAY_MS + KD3000_QUERY_TIMEOUT_MS))
+	{
+		pending.active = false;
+		return KD3000_POLL_TIMEOUT;
+	}
+	return KD3000_POLL_PENDING;
 }
 
 void setCurrent(float current)
@@ -184,6 +282,7 @@ void setOutput(bool on)
 // clearInputBuffer() to discard, which is what every other call already does.
 bool queryStatusByte(uint8_t &out)
 {
+	cancelQuery();
 	clearInputBuffer();
 	INTERFACE.write("STATUS?");
 	INTERFACE.write('\n');

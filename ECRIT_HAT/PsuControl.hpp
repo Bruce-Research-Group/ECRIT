@@ -6,7 +6,8 @@
 #include "KD3000/KD3000.hpp"
 
 // Deadbanded setpoint writes plus periodic readback, carried over from
-// Serial_PSU. The difference on the shield is that every readback reports
+// Serial_PSU. The readback in the control loop does not block: see
+// servicePsuReadback(). The difference on the shield is that every readback reports
 // whether the link actually answered:
 // getVoltage() returns atof("") = 0.000 on a timeout, so a dead RS-232 link
 // otherwise reads as a plausible 0.000 V. The comms-loss interlock needs the
@@ -23,6 +24,15 @@ struct PsuConfig
 	uint8_t statusEvery; // issue STATUS? once every N readbacks
 };
 
+// Which readback query is out, for servicePsuReadback().
+enum PsuReadbackStage : uint8_t
+{
+	PSU_READBACK_IDLE = 0,
+	PSU_READBACK_VOUT,
+	PSU_READBACK_IOUT,
+	PSU_READBACK_STATUS,
+};
+
 struct PsuState
 {
 	float voltageReadbackV = NAN;
@@ -32,6 +42,11 @@ struct PsuState
 
 	float lastVoltageSentV = NAN;
 	float lastCurrentLimitSentA = NAN;
+
+	// Non-blocking readback in progress. VOUT? is held here until IOUT? has
+	// answered too, so the pair is only published together.
+	PsuReadbackStage readbackStage = PSU_READBACK_IDLE;
+	float pendingVoltageV = NAN;
 
 	// Link health. lastGoodCommsMs is only meaningful once commsEverOk is set.
 	bool commsOk = false;
@@ -77,8 +92,25 @@ inline bool psuQueryStatus(uint8_t &out)
 	return queryStatusByte(out);
 }
 
+// Is a readback query waiting for its reply? A setpoint write now would cancel
+// it (set() clears the input buffer), so the deadbanded writes below wait: the
+// cache is left alone, and the next call sends the value instead.
+inline bool psuReadbackBusy(const PsuState &state)
+{
+	return state.readbackStage != PSU_READBACK_IDLE && queryInFlight();
+}
+
+// Drop a readback in flight without counting it as a comms failure. For
+// commands that must reach the supply at once.
+inline void psuCancelReadback(PsuState &state)
+{
+	cancelQuery();
+	state.readbackStage = PSU_READBACK_IDLE;
+}
+
 inline void setPsuVoltageIfNeeded(PsuState &state, const PsuConfig &cfg, float voltageV)
 {
+	if (psuReadbackBusy(state)) return;
 	const float clamped = clampFloat(voltageV, cfg.voltageMin, cfg.voltageMax);
 	if (isnan(state.lastVoltageSentV) || fabsf(clamped - state.lastVoltageSentV) >= 0.01f)
 	{
@@ -89,6 +121,7 @@ inline void setPsuVoltageIfNeeded(PsuState &state, const PsuConfig &cfg, float v
 
 inline void setPsuCurrentLimitIfNeeded(PsuState &state, const PsuConfig &cfg, float currentA)
 {
+	if (psuReadbackBusy(state)) return;
 	const float clamped = clampFloat(currentA, cfg.currentLimitMinA, cfg.maxCurrentA);
 	if (isnan(state.lastCurrentLimitSentA) || fabsf(clamped - state.lastCurrentLimitSentA) >= 0.005f)
 	{
@@ -112,34 +145,20 @@ inline void invalidatePsuSetpointCache(PsuState &state)
 	state.lastCurrentLimitSentA = NAN;
 }
 
-inline void updatePsuReadbackIfDue(PsuState &state, const PsuConfig &cfg, unsigned long nowMs, bool force)
+// A query that gets no answer costs 350 ms instead of a few tens, so a dead
+// link would otherwise spend most of its time in readback. Back off up to 4x
+// while it stays dead; the comms interlock is what actually reacts to the loss.
+inline unsigned long psuReadbackInterval(const PsuState &state, const PsuConfig &cfg)
 {
-	// A query that gets no answer costs 350 ms instead of 55 ms, so a dead link
-	// would otherwise spend more time in readback than in the control loop.
-	// Back off up to 4x while it stays dead; the comms interlock is what
-	// actually reacts to the loss.
-	unsigned long interval = cfg.readbackMs;
-	if (state.consecutiveFailures > 0)
-	{
-		const uint8_t shift = (state.consecutiveFailures > 2) ? 2 : state.consecutiveFailures;
-		interval = cfg.readbackMs << shift;
-	}
+	if (state.consecutiveFailures == 0) return cfg.readbackMs;
+	const uint8_t shift = (state.consecutiveFailures > 2) ? 2 : state.consecutiveFailures;
+	return cfg.readbackMs << shift;
+}
 
-	if (!force && (nowMs - state.lastReadbackMs) < interval)
-	{
-		return;
-	}
-
-	state.lastReadbackMs = nowMs;
-	state.readbackCount++;
-
-	float v = NAN;
-	float i = NAN;
-	const bool vOk = psuQueryFloat("VOUT" CH "?", v);
-	const bool iOk = psuQueryFloat("IOUT" CH "?", i);
-
-	state.commsOk = vOk && iOk;
-	if (state.commsOk)
+inline void psuRecordReadback(PsuState &state, bool ok, float v, float i)
+{
+	state.commsOk = ok;
+	if (ok)
 	{
 		state.voltageReadbackV = v;
 		state.currentReadbackA = i;
@@ -151,24 +170,114 @@ inline void updatePsuReadbackIfDue(PsuState &state, const PsuConfig &cfg, unsign
 	{
 		state.consecutiveFailures++;
 	}
+}
 
-	// STATUS? costs another blocking query. Skip it entirely while the link is
-	// already failing.
-	if (state.commsOk && cfg.statusEvery > 0 && (state.readbackCount % cfg.statusEvery) == 0)
+inline void psuRecordStatus(PsuState &state, bool ok, uint8_t raw)
+{
+	state.statusValid = ok;
+	if (!ok) return;
+	const KD3000Status status = {raw};
+	state.cvMode = status.cvMode();
+	state.outputOn = status.outputOn();
+	state.statusRaw = raw;
+	state.lastGoodCommsMs = millis();
+}
+
+// STATUS? is skipped entirely while the link is already failing.
+inline bool psuStatusDue(const PsuState &state, const PsuConfig &cfg)
+{
+	return state.commsOk && cfg.statusEvery > 0 && (state.readbackCount % cfg.statusEvery) == 0;
+}
+
+// Blocking readback. For `psu`, which prints the reply at once, and for `c`
+// and `v`, so the comms interlock sees a fresh reply on the first control
+// step. Neither runs inside the control loop.
+inline void readPsuNow(PsuState &state, const PsuConfig &cfg)
+{
+	psuCancelReadback(state);
+	state.lastReadbackMs = millis();
+	state.readbackCount++;
+
+	float v = NAN;
+	float i = NAN;
+	const bool vOk = psuQueryFloat("VOUT" CH "?", v);
+	const bool iOk = psuQueryFloat("IOUT" CH "?", i);
+	psuRecordReadback(state, vOk && iOk, v, i);
+
+	if (psuStatusDue(state, cfg))
 	{
 		uint8_t raw = 0;
-		if (psuQueryStatus(raw))
+		const bool ok = psuQueryStatus(raw);
+		psuRecordStatus(state, ok, raw);
+	}
+}
+
+// The control loop's readback: VOUT?, then IOUT?, then every statusEvery-th
+// time STATUS?, one query in flight at a time. Call it on every pass of the
+// loop; it returns at once. `force` starts a cycle now if none is running.
+//
+// This used to block for the whole sequence, 150-300 ms every 500 ms, and the
+// loop stopped with it: no current readings, no ADS conversions, no telemetry.
+inline void servicePsuReadback(PsuState &state, const PsuConfig &cfg, unsigned long nowMs, bool force)
+{
+	if (state.readbackStage == PSU_READBACK_IDLE)
+	{
+		if (!force && (nowMs - state.lastReadbackMs) < psuReadbackInterval(state, cfg))
 		{
-			const KD3000Status status = {raw};
-			state.cvMode = status.cvMode();
-			state.outputOn = status.outputOn();
-			state.statusRaw = raw;
-			state.statusValid = true;
-			state.lastGoodCommsMs = millis();
+			return;
 		}
-		else
-		{
-			state.statusValid = false;
-		}
+		state.lastReadbackMs = nowMs;
+		state.readbackCount++;
+		beginQuery("VOUT" CH "?", false);
+		state.readbackStage = PSU_READBACK_VOUT;
+		return;
+	}
+
+	char response[32];
+	const KD3000PollResult result = pollQuery(response, sizeof(response));
+	if (result == KD3000_POLL_PENDING)
+	{
+		return;
+	}
+
+	const PsuReadbackStage stage = state.readbackStage;
+	state.readbackStage = PSU_READBACK_IDLE;
+
+	if (result == KD3000_POLL_CANCELLED)
+	{
+		// Another command went out first. Not the link's fault.
+		return;
+	}
+
+	if (result == KD3000_POLL_TIMEOUT)
+	{
+		if (stage == PSU_READBACK_STATUS) psuRecordStatus(state, false, 0);
+		else psuRecordReadback(state, false, NAN, NAN);
+		return;
+	}
+
+	switch (stage)
+	{
+		case PSU_READBACK_VOUT:
+			state.pendingVoltageV = (float)atof(response);
+			beginQuery("IOUT" CH "?", false);
+			state.readbackStage = PSU_READBACK_IOUT;
+			break;
+
+		case PSU_READBACK_IOUT:
+			psuRecordReadback(state, true, state.pendingVoltageV, (float)atof(response));
+			if (psuStatusDue(state, cfg))
+			{
+				beginQuery("STATUS?", true);
+				state.readbackStage = PSU_READBACK_STATUS;
+			}
+			break;
+
+		case PSU_READBACK_STATUS:
+			psuRecordStatus(state, true, (uint8_t)response[0]);
+			break;
+
+		default:
+			break;
 	}
 }
